@@ -4,7 +4,7 @@ import { ArrowLeft, Plus, TrendingUp, TrendingDown, Settings } from 'lucide-reac
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { supabase } from '../../../lib/supabase'
+import { supabase } from '@/lib/supabase'
 
 interface Participant {
   id: string
@@ -66,6 +66,7 @@ export default function GroupPage() {
               <ArrowLeft className="w-6 h-6" />
             </button>
           </Link>
+
           <h1 className="text-lg font-semibold text-gray-800">{group.name}</h1>
 
           <Link href={`/group/${groupId}/settings`}>
@@ -153,3 +154,4 @@ export default function GroupPage() {
     </div>
   )
 }
+
