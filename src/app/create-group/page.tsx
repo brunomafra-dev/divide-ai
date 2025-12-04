@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { supabase } from '../../lib/supabase' // <— GARANTA QUE O CAMINHO ESTÁ CERTO
 
 interface Participant {
   id: string
@@ -13,6 +14,7 @@ interface Participant {
 
 export default function CreateGroup() {
   const router = useRouter()
+
   const [groupName, setGroupName] = useState('')
   const [category, setCategory] = useState<'apartment' | 'house' | 'trip' | 'other'>('other')
   const [participants, setParticipants] = useState<Participant[]>([
@@ -20,6 +22,8 @@ export default function CreateGroup() {
   ])
   const [newParticipantName, setNewParticipantName] = useState('')
   const [newParticipantEmail, setNewParticipantEmail] = useState('')
+
+  const [loading, setLoading] = useState(false)
 
   const categories = [
     { id: 'apartment', label: 'Apartamento', icon: '🏢' },
@@ -29,49 +33,57 @@ export default function CreateGroup() {
   ]
 
   const addParticipant = () => {
-    if (newParticipantName.trim()) {
-      const newParticipant: Participant = {
-        id: Date.now().toString(),
-        name: newParticipantName.trim(),
-        email: newParticipantEmail.trim() || undefined,
-      }
-      setParticipants([...participants, newParticipant])
-      setNewParticipantName('')
-      setNewParticipantEmail('')
+    if (!newParticipantName.trim()) return
+
+    const newParticipant: Participant = {
+      id: Date.now().toString(),
+      name: newParticipantName.trim(),
+      email: newParticipantEmail.trim() || undefined,
     }
+
+    setParticipants([...participants, newParticipant])
+    setNewParticipantName('')
+    setNewParticipantEmail('')
   }
 
   const removeParticipant = (id: string) => {
-    if (id === '1') return // Não pode remover "Você"
+    if (id === '1') return // não remove você
     setParticipants(participants.filter(p => p.id !== id))
   }
 
-  const handleCreateGroup = () => {
+  const handleCreateGroup = async () => {
     if (!groupName.trim() || participants.length < 2) {
       alert('Adicione um nome e pelo menos 2 participantes')
       return
     }
 
-    // Salvar grupo no localStorage
-    const savedGroups = localStorage.getItem('divideai_groups')
-    const groups = savedGroups ? JSON.parse(savedGroups) : []
-    
-    const newGroup = {
-      id: Date.now().toString(),
-      name: groupName,
-      category,
-      totalSpent: 0,
-      balance: 0,
-      participants: participants.length,
-      participantsList: participants,
-      transactions: [],
+    try {
+      setLoading(true)
+
+      const { data, error } = await supabase
+        .from('groups')
+        .insert({
+          name: groupName,
+          category,
+          participants,             // salva lista COMPLETA
+          total_spent: 0,
+          balance: 0,
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error(error)
+        alert('Erro ao criar grupo')
+        return
+      }
+
+      // Redirecionar para o grupo criado
+      router.push(`/group/${data.id}`)
+
+    } finally {
+      setLoading(false)
     }
-
-    groups.push(newGroup)
-    localStorage.setItem('divideai_groups', JSON.stringify(groups))
-    localStorage.setItem(`divideai_group_${newGroup.id}`, JSON.stringify(newGroup))
-
-    router.push(`/group/${newGroup.id}`)
   }
 
   return (
@@ -85,17 +97,19 @@ export default function CreateGroup() {
             </button>
           </Link>
           <h1 className="text-lg font-semibold text-gray-800">Criar grupo</h1>
+
           <button
             onClick={handleCreateGroup}
+            disabled={loading}
             className="text-[#5BC5A7] font-medium hover:text-[#4AB396]"
           >
-            Criar
+            {loading ? 'Criando...' : 'Criar'}
           </button>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Nome do Grupo */}
+        {/* Nome */}
         <div className="bg-white rounded-xl p-4 shadow-sm">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Nome do grupo
@@ -105,7 +119,7 @@ export default function CreateGroup() {
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
             placeholder="Ex: Viagem para Praia"
-            className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5BC5A7] focus:border-transparent"
+            className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5BC5A7]"
           />
         </div>
 
@@ -137,14 +151,11 @@ export default function CreateGroup() {
           <label className="block text-sm font-medium text-gray-700 mb-3">
             Participantes ({participants.length})
           </label>
-          
-          {/* Lista de Participantes */}
+
+          {/* Lista */}
           <div className="space-y-2 mb-4">
             {participants.map((participant) => (
-              <div
-                key={participant.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-              >
+              <div key={participant.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#5BC5A7] rounded-full flex items-center justify-center">
                     <span className="text-white font-medium text-sm">
@@ -158,11 +169,9 @@ export default function CreateGroup() {
                     )}
                   </div>
                 </div>
+
                 {participant.id !== '1' && (
-                  <button
-                    onClick={() => removeParticipant(participant.id)}
-                    className="text-gray-400 hover:text-red-500"
-                  >
+                  <button onClick={() => removeParticipant(participant.id)} className="text-gray-400 hover:text-red-500">
                     <X className="w-5 h-5" />
                   </button>
                 )}
@@ -170,25 +179,27 @@ export default function CreateGroup() {
             ))}
           </div>
 
-          {/* Adicionar Participante */}
+          {/* Add */}
           <div className="space-y-2 pt-4 border-t border-gray-200">
             <input
               type="text"
               value={newParticipantName}
               onChange={(e) => setNewParticipantName(e.target.value)}
               placeholder="Nome do participante"
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5BC5A7] focus:border-transparent text-sm"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#5BC5A7]"
             />
+
             <input
               type="email"
               value={newParticipantEmail}
               onChange={(e) => setNewParticipantEmail(e.target.value)}
               placeholder="Email (opcional)"
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5BC5A7] focus:border-transparent text-sm"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#5BC5A7]"
             />
+
             <button
               onClick={addParticipant}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#5BC5A7] text-white rounded-lg hover:bg-[#4AB396] transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#5BC5A7] text-white rounded-lg hover:bg-[#4AB396]"
             >
               <Plus className="w-4 h-4" />
               <span className="text-sm font-medium">Adicionar participante</span>
@@ -196,12 +207,13 @@ export default function CreateGroup() {
           </div>
         </div>
 
-        {/* Botão Criar */}
+        {/* Criar */}
         <button
           onClick={handleCreateGroup}
+          disabled={loading}
           className="w-full py-4 bg-[#5BC5A7] text-white rounded-xl font-medium hover:bg-[#4AB396] transition-colors shadow-sm"
         >
-          Criar grupo
+          {loading ? 'Criando...' : 'Criar grupo'}
         </button>
       </main>
     </div>
