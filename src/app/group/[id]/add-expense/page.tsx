@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { supabase } from '../../../../lib/supabase'
+import { supabase } from '@/lib/supabase'
 
 interface Participant {
   id: string
@@ -15,8 +15,9 @@ interface Participant {
 interface Group {
   id: string
   name: string
-  participants: Participant[]
-  total_spent: number
+  participantsList: Participant[]
+  transactions: any[]
+  totalSpent: number
   balance: number
 }
 
@@ -24,217 +25,220 @@ export default function AddExpense() {
   const params = useParams()
   const router = useRouter()
   const groupId = params.id as string
-
+  
   const [group, setGroup] = useState<Group | null>(null)
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
   const [payerId, setPayerId] = useState('')
-  const [selectedParticipants, setSelectedParticipants] = useState<string[]>([])
-  const [loading, setLoading] = useState(false)
+  const [splitType, setSplitType] = useState<'equal' | 'custom'>('equal')
+  const [weights, setWeights] = useState<Record<string, number>>({})
+  const [calculatedSplits, setCalculatedSplits] = useState<Record<string, number>>({})
 
-  // -------------------------------------------
-  // 🔥 CARREGAR GRUPO DO SUPABASE
-  // -------------------------------------------
   useEffect(() => {
     async function loadGroup() {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('groups')
         .select('*')
         .eq('id', groupId)
         .single()
 
-      if (error) {
-        console.error(error)
-        return
-      }
+      if (data) {
+        setGroup(data)
 
-      setGroup(data)
-      setPayerId(data.participants[0]?.id)
-      setSelectedParticipants(data.participants.map((p: Participant) => p.id))
+        const w: Record<string, number> = {}
+        data.participantsList.forEach(p => (w[p.id] = 1))
+        setWeights(w)
+
+        setPayerId(data.participantsList[0]?.id || '')
+      }
     }
 
     loadGroup()
   }, [groupId])
 
-  // -------------------------------------------
-  // 🔥 SELECIONAR PARTICIPANTE
-  // -------------------------------------------
-  const toggleParticipant = (id: string) => {
-    if (selectedParticipants.includes(id)) {
-      setSelectedParticipants(selectedParticipants.filter(i => i !== id))
-    } else {
-      setSelectedParticipants([...selectedParticipants, id])
-    }
-  }
+  function calculateCustomSplits() {
+    const total = parseFloat(amount)
+    if (!total || total <= 0) return {}
 
-  // -------------------------------------------
-  // 🔥 SALVAR GASTO
-  // -------------------------------------------
-  const handleSave = async () => {
-    if (!amount || !description || !payerId) {
-      alert("Preencha todos os campos")
-      return
-    }
+    const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0)
 
-    setLoading(true)
-
-    const value = Number(amount)
-    const payer = group?.participants.find(p => p.id === payerId)
-
-    // SALVAR TRANSAÇÃO
-    const { error: tError } = await supabase.from("transactions").insert({
-      id: crypto.randomUUID(),
-      groupid: groupId,
-      value,
-      description,
-      payerid: payerId,
-      participants: selectedParticipants,
-      splits: {}, // por agora vazio, pronto para modo manual depois
+    const result: Record<string, number> = {}
+    group?.participantsList.forEach(p => {
+      const w = weights[p.id]
+      result[p.id] = parseFloat(((total * w) / totalWeight).toFixed(2))
     })
 
-    if (tError) {
-      console.error(tError)
-      alert("Erro ao adicionar gasto")
-      setLoading(false)
+    setCalculatedSplits(result)
+    return result
+  }
+
+  async function handleSave() {
+    if (!amount || !description || !payerId) {
+      alert('Preencha todos os campos')
       return
     }
 
-    // ATUALIZAR TOTAL DO GRUPO
-    const newTotal = (group?.total_spent || 0) + value
+    let splitsToSave: Record<string, number> = {}
 
-    const { error: gError } = await supabase
-      .from("groups")
-      .update({
-        total_spent: newTotal
+    if (splitType === 'equal') {
+      const equalValue = parseFloat(amount) / (group!.participantsList.length)
+      group?.participantsList.forEach(p => {
+        splitsToSave[p.id] = parseFloat(equalValue.toFixed(2))
       })
-      .eq("id", groupId)
+    } else {
+      splitsToSave = calculateCustomSplits()
+    }
 
-    if (gError) {
-      console.error(gError)
+    const newTransaction = {
+      id: crypto.randomUUID(),
+      group_id: groupId,
+      amount: parseFloat(amount),
+      description,
+      payer_id: payerId,
+      participants: group!.participantsList.map(p => p.id),
+      splits: splitsToSave,
+      created_at: new Date().toISOString()
+    }
+
+    const { error } = await supabase.from('transactions').insert(newTransaction)
+
+    if (error) {
+      console.error(error)
+      alert("Erro ao salvar gasto!")
+      return
     }
 
     router.push(`/group/${groupId}`)
   }
 
-  if (!group) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">Carregando...</p>
-      </div>
-    )
-  }
+  if (!group) return <p>Carregando...</p>
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] pb-20">
-      {/* HEADER */}
+    <div className="min-h-screen bg-[#F7F7F7]">
+      
+      {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href={`/group/${groupId}`}>
-            <button className="text-gray-600 hover:text-gray-800">
-              <ArrowLeft className="w-6 h-6" />
-            </button>
+            <ArrowLeft className="w-6 h-6 text-gray-600" />
           </Link>
           <h1 className="text-lg font-semibold text-gray-800">Adicionar gasto</h1>
-          <button
+          <button 
             onClick={handleSave}
-            disabled={loading}
-            className="text-[#5BC5A7] font-medium hover:text-[#4AB396]"
+            className="text-[#5BC5A7] font-medium"
           >
-            {loading ? "Salvando..." : "Salvar"}
+            Salvar
           </button>
         </div>
       </header>
 
-      {/* MAIN */}
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-
-        {/* VALOR */}
-        <div className="bg-white rounded-xl p-6 shadow-sm text-center">
-          <label className="block text-sm text-gray-600 mb-2">Valor</label>
-          <div className="flex items-center justify-center gap-2">
-            <span className="text-3xl font-bold">R$</span>
-            <input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0,00"
-              step="0.01"
-              className="text-3xl font-bold w-40 text-center border-b-2 border-[#5BC5A7] focus:outline-none"
-            />
-          </div>
-        </div>
-
-        {/* DESCRIÇÃO */}
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <label className="block text-sm text-gray-700 mb-2">Descrição</label>
+        
+        {/* Valor */}
+        <div className="bg-white p-6 rounded-xl shadow-sm">
+          <label className="text-gray-600 font-medium">Valor</label>
           <input
-            type="text"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Ex: Mercado, Uber, Pizza..."
-            className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#5BC5A7]"
+            type="number"
+            step="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="text-3xl w-full text-center border-b mt-2"
+            placeholder="0,00"
           />
         </div>
 
-        {/* QUEM PAGOU */}
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <label className="block text-sm text-gray-700 mb-3">Quem pagou?</label>
-          <div className="space-y-2">
-            {group.participants.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setPayerId(p.id)}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 ${
-                  payerId === p.id ? "border-[#5BC5A7] bg-green-50" : "border-gray-200"
-                }`}
-              >
-                <div className="w-10 h-10 bg-[#5BC5A7] rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold">{p.name[0]}</span>
+        {/* Descrição */}
+        <div className="bg-white p-4 rounded-xl shadow-sm">
+          <label className="block font-medium text-gray-600">Descrição</label>
+          <input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Ex: Churrasco, Mercado..."
+            className="w-full px-4 py-2 border mt-2 rounded-lg"
+          />
+        </div>
+
+        {/* Quem pagou */}
+        <div className="bg-white p-4 rounded-xl shadow-sm">
+          <label className="font-medium text-gray-600">Quem pagou?</label>
+
+          {group.participantsList.map(p => (
+            <button 
+              key={p.id}
+              onClick={() => setPayerId(p.id)}
+              className={`w-full text-left p-3 border rounded-lg mt-2 ${
+                payerId === p.id ? "border-[#5BC5A7] bg-green-50" : ""
+              }`}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Tipo de divisão */}
+        <div className="bg-white p-4 rounded-xl shadow-sm">
+          <label className="font-medium text-gray-600">Como dividir?</label>
+
+          <div className="flex gap-3 mt-3">
+            <button 
+              onClick={() => setSplitType("equal")}
+              className={`flex-1 p-2 rounded-lg ${
+                splitType === "equal" ? "bg-[#5BC5A7] text-white" : "bg-gray-200"
+              }`}
+            >
+              Igual
+            </button>
+
+            <button 
+              onClick={() => setSplitType("custom")}
+              className={`flex-1 p-2 rounded-lg ${
+                splitType === "custom" ? "bg-[#5BC5A7] text-white" : "bg-gray-200"
+              }`}
+            >
+              Personalizada
+            </button>
+          </div>
+
+          {/* Divisão Personalizada */}
+          {splitType === "custom" && (
+            <div className="mt-4 space-y-3">
+              <p className="text-sm text-gray-600">Defina o peso de cada pessoa:</p>
+
+              {group.participantsList.map(p => (
+                <div key={p.id} className="flex justify-between items-center border p-2 rounded-lg">
+                  <span>{p.name}</span>
+                  <input 
+                    type="number"
+                    min={1}
+                    value={weights[p.id]}
+                    onChange={(e) => setWeights({ ...weights, [p.id]: Number(e.target.value) })}
+                    className="w-20 border rounded p-1 text-center"
+                  />
                 </div>
-                <p className="text-sm font-medium">{p.name}</p>
+              ))}
+
+              <button 
+                onClick={calculateCustomSplits}
+                className="mt-3 bg-[#5BC5A7] text-white px-4 py-2 rounded-lg"
+              >
+                Calcular divisão
               </button>
-            ))}
-          </div>
+
+              {/* Mostrar o resultado da divisão */}
+              {Object.keys(calculatedSplits).length > 0 && (
+                <div className="mt-3 p-3 bg-gray-100 rounded-lg">
+                  {group.participantsList.map(p => (
+                    <p key={p.id}>
+                      <strong>{p.name}:</strong> R$ {calculatedSplits[p.id]?.toFixed(2)}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
 
-        {/* PARTICIPANTES ENVOLVIDOS */}
-        <div className="bg-white rounded-xl p-4 shadow-sm">
-          <label className="block text-sm text-gray-700 mb-3">
-            Quem participou ({selectedParticipants.length})
-          </label>
-
-          <div className="space-y-2">
-            {group.participants.map((p) => {
-              const selected = selectedParticipants.includes(p.id)
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => toggleParticipant(p.id)}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg border-2 ${
-                    selected ? "border-[#5BC5A7] bg-green-50" : "border-gray-200"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      selected ? "bg-[#5BC5A7]" : "bg-gray-300"
-                    }`}>
-                      <span className="text-white font-bold">{p.name[0]}</span>
-                    </div>
-                    <p className="text-sm font-medium">{p.name}</p>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* SALVAR */}
-        <button
-          onClick={handleSave}
-          className="w-full py-4 bg-[#5BC5A7] text-white rounded-xl font-medium hover:bg-[#4AB396]"
-        >
-          Salvar gasto
-        </button>
       </main>
     </div>
   )
