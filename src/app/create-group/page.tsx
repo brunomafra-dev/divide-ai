@@ -67,15 +67,15 @@ export default function CreateGroup() {
 
     const groupId = crypto.randomUUID()
 
-    const { error } = await supabase.from("groups").insert({
-      id: groupId,
-      name: groupName,
-      category,
-      total_spent: 0,
-      balance: 0,
-      participantsList: participants,  // ← AQUI É O NOME CORRETO DO SUPABASE
-      created_at: new Date().toISOString()
-    })
+const { error } = await supabase.from("groups").insert({
+  id: groupId,
+  name: groupName,
+  category,
+  total_spent: 0,
+  balance: 0,
+  participants: participants, // ← NOME CORRETO
+  created_at: new Date().toISOString()
+})
 
     if (error) {
       console.error(error)
