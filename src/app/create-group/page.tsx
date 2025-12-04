@@ -4,7 +4,7 @@ import { ArrowLeft, Plus, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { supabase } from '../../lib/supabase' // <— GARANTA QUE O CAMINHO ESTÁ CERTO
+import { supabase } from '../../lib/supabase'
 
 interface Participant {
   id: string
@@ -18,8 +18,9 @@ export default function CreateGroup() {
   const [groupName, setGroupName] = useState('')
   const [category, setCategory] = useState<'apartment' | 'house' | 'trip' | 'other'>('other')
   const [participants, setParticipants] = useState<Participant[]>([
-    { id: '1', name: 'Você', email: 'voce@email.com' }
+    { id: '1', name: 'Você', email: '' }
   ])
+
   const [newParticipantName, setNewParticipantName] = useState('')
   const [newParticipantEmail, setNewParticipantEmail] = useState('')
 
@@ -35,55 +36,55 @@ export default function CreateGroup() {
   const addParticipant = () => {
     if (!newParticipantName.trim()) return
 
-    const newParticipant: Participant = {
+    const newP: Participant = {
       id: Date.now().toString(),
       name: newParticipantName.trim(),
-      email: newParticipantEmail.trim() || undefined,
+      email: newParticipantEmail.trim() || undefined
     }
 
-    setParticipants([...participants, newParticipant])
+    setParticipants([...participants, newP])
     setNewParticipantName('')
     setNewParticipantEmail('')
   }
 
   const removeParticipant = (id: string) => {
-    if (id === '1') return // não remove você
+    if (id === '1') return
     setParticipants(participants.filter(p => p.id !== id))
   }
 
   const handleCreateGroup = async () => {
-    if (!groupName.trim() || participants.length < 2) {
-      alert('Adicione um nome e pelo menos 2 participantes')
+    if (!groupName.trim()) {
+      alert("⚠️ O grupo precisa de um nome")
       return
     }
 
-    try {
-      setLoading(true)
-
-      const { data, error } = await supabase
-        .from('groups')
-        .insert({
-          name: groupName,
-          category,
-          participants,             // salva lista COMPLETA
-          total_spent: 0,
-          balance: 0,
-        })
-        .select()
-        .single()
-
-      if (error) {
-        console.error(error)
-        alert('Erro ao criar grupo')
-        return
-      }
-
-      // Redirecionar para o grupo criado
-      router.push(`/group/${data.id}`)
-
-    } finally {
-      setLoading(false)
+    if (participants.length < 2) {
+      alert("⚠️ O grupo precisa de pelo menos 2 participantes")
+      return
     }
+
+    setLoading(true)
+
+    const groupId = crypto.randomUUID()
+
+    const { error } = await supabase.from("groups").insert({
+      id: groupId,
+      name: groupName,
+      category: category,
+      total_spent: 0,
+      balance: 0,
+      participants: participants, // JSONB
+      created_at: new Date().toISOString()
+    })
+
+    if (error) {
+      console.error(error)
+      alert("Erro ao criar grupo!")
+      setLoading(false)
+      return
+    }
+
+    router.push(`/group/${groupId}`)
   }
 
   return (
@@ -103,13 +104,13 @@ export default function CreateGroup() {
             disabled={loading}
             className="text-[#5BC5A7] font-medium hover:text-[#4AB396]"
           >
-            {loading ? 'Criando...' : 'Criar'}
+            {loading ? "Criando..." : "Criar"}
           </button>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Nome */}
+        {/* Nome do Grupo */}
         <div className="bg-white rounded-xl p-4 shadow-sm">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Nome do grupo
@@ -118,8 +119,8 @@ export default function CreateGroup() {
             type="text"
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
-            placeholder="Ex: Viagem para Praia"
-            className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5BC5A7]"
+            placeholder="Ex: Viagem de Férias"
+            className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#5BC5A7] focus:outline-none"
           />
         </div>
 
@@ -135,8 +136,8 @@ export default function CreateGroup() {
                 onClick={() => setCategory(cat.id as any)}
                 className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
                   category === cat.id
-                    ? 'border-[#5BC5A7] bg-green-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? "border-[#5BC5A7] bg-green-50"
+                    : "border-gray-200 hover:border-gray-300"
                 }`}
               >
                 <span className="text-2xl">{cat.icon}</span>
@@ -152,26 +153,21 @@ export default function CreateGroup() {
             Participantes ({participants.length})
           </label>
 
-          {/* Lista */}
           <div className="space-y-2 mb-4">
-            {participants.map((participant) => (
-              <div key={participant.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            {participants.map((p) => (
+              <div key={p.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-[#5BC5A7] rounded-full flex items-center justify-center">
-                    <span className="text-white font-medium text-sm">
-                      {participant.name.charAt(0).toUpperCase()}
-                    </span>
+                    <span className="text-white font-semibold">{p.name.charAt(0).toUpperCase()}</span>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-800">{participant.name}</p>
-                    {participant.email && (
-                      <p className="text-xs text-gray-500">{participant.email}</p>
-                    )}
+                    <p className="text-sm font-medium text-gray-800">{p.name}</p>
+                    {p.email && <p className="text-xs text-gray-500">{p.email}</p>}
                   </div>
                 </div>
 
-                {participant.id !== '1' && (
-                  <button onClick={() => removeParticipant(participant.id)} className="text-gray-400 hover:text-red-500">
+                {p.id !== "1" && (
+                  <button onClick={() => removeParticipant(p.id)} className="text-gray-400 hover:text-red-500">
                     <X className="w-5 h-5" />
                   </button>
                 )}
@@ -179,14 +175,14 @@ export default function CreateGroup() {
             ))}
           </div>
 
-          {/* Add */}
+          {/* Add participant */}
           <div className="space-y-2 pt-4 border-t border-gray-200">
             <input
               type="text"
               value={newParticipantName}
               onChange={(e) => setNewParticipantName(e.target.value)}
               placeholder="Nome do participante"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#5BC5A7]"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#5BC5A7]"
             />
 
             <input
@@ -194,7 +190,7 @@ export default function CreateGroup() {
               value={newParticipantEmail}
               onChange={(e) => setNewParticipantEmail(e.target.value)}
               placeholder="Email (opcional)"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#5BC5A7]"
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#5BC5A7]"
             />
 
             <button
@@ -202,20 +198,20 @@ export default function CreateGroup() {
               className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#5BC5A7] text-white rounded-lg hover:bg-[#4AB396]"
             >
               <Plus className="w-4 h-4" />
-              <span className="text-sm font-medium">Adicionar participante</span>
+              Adicionar participante
             </button>
           </div>
         </div>
 
-        {/* Criar */}
         <button
           onClick={handleCreateGroup}
           disabled={loading}
-          className="w-full py-4 bg-[#5BC5A7] text-white rounded-xl font-medium hover:bg-[#4AB396] transition-colors shadow-sm"
+          className="w-full py-4 bg-[#5BC5A7] text-white rounded-xl font-medium hover:bg-[#4AB396]"
         >
-          {loading ? 'Criando...' : 'Criar grupo'}
+          {loading ? "Criando grupo..." : "Criar grupo"}
         </button>
       </main>
     </div>
   )
 }
+
