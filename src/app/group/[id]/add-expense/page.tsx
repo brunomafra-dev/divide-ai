@@ -15,73 +15,52 @@ interface Participant {
 interface Group {
   id: string
   name: string
-  participants: Participant[]
-  participantsList?: Participant[] // compatibilidade
-  total_spent: number
-  balance: number
+  participantsList: Participant[]
 }
 
 export default function AddExpense() {
   const params = useParams()
   const router = useRouter()
   const groupId = params.id as string
-  
+
   const [group, setGroup] = useState<Group | null>(null)
-  const [amount, setAmount] = useState('')
+  const [value, setValue] = useState('')
   const [description, setDescription] = useState('')
   const [payerId, setPayerId] = useState('')
   const [splitType, setSplitType] = useState<'equal' | 'custom'>('equal')
   const [weights, setWeights] = useState<Record<string, number>>({})
   const [calculatedSplits, setCalculatedSplits] = useState<Record<string, number>>({})
 
-  // -------------------------------
-  // 🚀 Carregar grupo com fallback seguro
-  // -------------------------------
   useEffect(() => {
     async function loadGroup() {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('groups')
         .select('*')
         .eq('id', groupId)
         .single()
 
-      if (error || !data) {
-        console.error(error)
-        return
+      if (data) {
+        setGroup(data)
+
+        const defaultWeights: Record<string, number> = {}
+        data.participantsList.forEach(p => (defaultWeights[p.id] = 1))
+
+        setWeights(defaultWeights)
+        setPayerId(data.participantsList[0]?.id || '')
       }
-
-      // Compatibilidade: usar participants OU participantsList
-      const participants = data.participants || data.participantsList || []
-
-      const formattedGroup: Group = {
-        ...data,
-        participants,
-        participantsList: participants
-      }
-
-      setGroup(formattedGroup)
-
-      const w: Record<string, number> = {}
-      participants.forEach(p => (w[p.id] = 1))
-      setWeights(w)
-
-      setPayerId(participants[0]?.id || '')
     }
 
     loadGroup()
   }, [groupId])
 
-  // -------------------------------
-  // 🔢 Calcular rateio personalizado
-  // -------------------------------
   function calculateCustomSplits() {
-    const total = parseFloat(amount)
-    if (!total || total <= 0) return {}
+    const total = parseFloat(value)
+    if (!total || total <= 0 || !group) return {}
 
     const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0)
 
     const result: Record<string, number> = {}
-    group?.participants.forEach(p => {
+    group.participantsList.forEach(p => {
       const w = weights[p.id]
       result[p.id] = parseFloat(((total * w) / totalWeight).toFixed(2))
     })
@@ -90,11 +69,8 @@ export default function AddExpense() {
     return result
   }
 
-  // -------------------------------
-  // 💾 Salvar gasto
-  // -------------------------------
   async function handleSave() {
-    if (!amount || !description || !payerId) {
+    if (!value || !description || !payerId) {
       alert('Preencha todos os campos')
       return
     }
@@ -102,8 +78,8 @@ export default function AddExpense() {
     let splitsToSave: Record<string, number> = {}
 
     if (splitType === 'equal') {
-      const equalValue = parseFloat(amount) / group!.participants.length
-      group?.participants.forEach(p => {
+      const equalValue = parseFloat(value) / (group!.participantsList.length)
+      group?.participantsList.forEach(p => {
         splitsToSave[p.id] = parseFloat(equalValue.toFixed(2))
       })
     } else {
@@ -112,11 +88,11 @@ export default function AddExpense() {
 
     const newTransaction = {
       id: crypto.randomUUID(),
-      group_id: groupId,
-      amount: parseFloat(amount),
+      groupid: groupId,
+      value: parseFloat(value),
       description,
-      payer_id: payerId,
-      participants: group!.participants.map(p => p.id),
+      payerid: payerId,
+      participants: group!.participantsList.map(p => p.id),
       splits: splitsToSave,
       created_at: new Date().toISOString()
     }
@@ -154,15 +130,15 @@ export default function AddExpense() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-
+        
         {/* Valor */}
         <div className="bg-white p-6 rounded-xl shadow-sm">
           <label className="text-gray-600 font-medium">Valor</label>
           <input
             type="number"
             step="0.01"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
             className="text-3xl w-full text-center border-b mt-2"
             placeholder="0,00"
           />
@@ -183,7 +159,7 @@ export default function AddExpense() {
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="font-medium text-gray-600">Quem pagou?</label>
 
-          {group.participantsList!.map(p => (
+          {group.participantsList.map(p => (
             <button 
               key={p.id}
               onClick={() => setPayerId(p.id)}
@@ -220,17 +196,16 @@ export default function AddExpense() {
             </button>
           </div>
 
-          {/* Divisão Personalizada */}
           {splitType === "custom" && (
             <div className="mt-4 space-y-3">
               <p className="text-sm text-gray-600">Defina o peso de cada pessoa:</p>
 
-              {group.participantsList!.map(p => (
+              {group.participantsList.map(p => (
                 <div key={p.id} className="flex justify-between items-center border p-2 rounded-lg">
                   <span>{p.name}</span>
                   <input 
                     type="number"
-                    min={1}
+                    min={0}
                     value={weights[p.id]}
                     onChange={(e) => setWeights({ ...weights, [p.id]: Number(e.target.value) })}
                     className="w-20 border rounded p-1 text-center"
@@ -245,10 +220,9 @@ export default function AddExpense() {
                 Calcular divisão
               </button>
 
-              {/* Mostrar resultado */}
               {Object.keys(calculatedSplits).length > 0 && (
                 <div className="mt-3 p-3 bg-gray-100 rounded-lg">
-                  {group.participantsList!.map(p => (
+                  {group.participantsList.map(p => (
                     <p key={p.id}>
                       <strong>{p.name}:</strong> R$ {calculatedSplits[p.id]?.toFixed(2)}
                     </p>
@@ -257,6 +231,7 @@ export default function AddExpense() {
               )}
             </div>
           )}
+
         </div>
 
       </main>
