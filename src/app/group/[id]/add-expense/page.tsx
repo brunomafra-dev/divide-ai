@@ -43,15 +43,20 @@ export default function AddExpense() {
         .single()
 
       if (data) {
-        setGroup(data)
+  // compatibilidade para o código atual
+  const participants = data.participants || data.participantsList || [];
+  
+  setGroup({
+    ...data,
+    participantsList: participants
+  });
 
-        const w: Record<string, number> = {}
-        data.participantsList.forEach(p => (w[p.id] = 1))
-        setWeights(w)
+  const w: Record<string, number> = {};
+  participants.forEach(p => (w[p.id] = 1));
+  setWeights(w);
 
-        setPayerId(data.participantsList[0]?.id || '')
-      }
-    }
+  setPayerId(participants[0]?.id || '');
+}
 
     loadGroup()
   }, [groupId])
