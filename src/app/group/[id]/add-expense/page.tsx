@@ -12,10 +12,11 @@ interface Participant {
   email?: string
 }
 
-interface Group {
+interface GroupData {
   id: string
   name: string
-  participantsList: Participant[]
+  participants?: Participant[]
+  participantsList?: Participant[]
 }
 
 export default function AddExpense() {
@@ -23,11 +24,14 @@ export default function AddExpense() {
   const router = useRouter()
   const groupId = params.id as string
 
-  const [group, setGroup] = useState<Group | null>(null)
+  const [group, setGroup] = useState<GroupData | null>(null)
+  const [participants, setParticipants] = useState<Participant[]>([])
+
   const [value, setValue] = useState('')
   const [description, setDescription] = useState('')
   const [payerId, setPayerId] = useState('')
   const [splitType, setSplitType] = useState<'equal' | 'custom'>('equal')
+
   const [weights, setWeights] = useState<Record<string, number>>({})
   const [calculatedSplits, setCalculatedSplits] = useState<Record<string, number>>({})
 
@@ -42,11 +46,14 @@ export default function AddExpense() {
       if (data) {
         setGroup(data)
 
-        const defaultWeights: Record<string, number> = {}
-        data.participantsList.forEach(p => (defaultWeights[p.id] = 1))
+        const list = data.participants ?? data.participantsList ?? []
+        setParticipants(list)
 
+        const defaultWeights: Record<string, number> = {}
+        list.forEach(p => (defaultWeights[p.id] = 1))
         setWeights(defaultWeights)
-        setPayerId(data.participantsList[0]?.id || '')
+
+        setPayerId(list[0]?.id || '')
       }
     }
 
@@ -55,12 +62,12 @@ export default function AddExpense() {
 
   function calculateCustomSplits() {
     const total = parseFloat(value)
-    if (!total || total <= 0 || !group) return {}
+    if (!total || total <= 0) return {}
 
     const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0)
 
     const result: Record<string, number> = {}
-    group.participantsList.forEach(p => {
+    participants.forEach(p => {
       const w = weights[p.id]
       result[p.id] = parseFloat(((total * w) / totalWeight).toFixed(2))
     })
@@ -75,29 +82,27 @@ export default function AddExpense() {
       return
     }
 
-    let splitsToSave: Record<string, number> = {}
+    let splits: Record<string, number> = {}
 
     if (splitType === 'equal') {
-      const equalValue = parseFloat(value) / (group!.participantsList.length)
-      group?.participantsList.forEach(p => {
-        splitsToSave[p.id] = parseFloat(equalValue.toFixed(2))
-      })
+      const equal = parseFloat(value) / participants.length
+      participants.forEach(p => (splits[p.id] = parseFloat(equal.toFixed(2))))
     } else {
-      splitsToSave = calculateCustomSplits()
+      splits = calculateCustomSplits()
     }
 
-    const newTransaction = {
+    const newExpense = {
       id: crypto.randomUUID(),
       groupid: groupId,
       value: parseFloat(value),
       description,
       payerid: payerId,
-      participants: group!.participantsList.map(p => p.id),
-      splits: splitsToSave,
+      participants: participants.map(p => p.id),
+      splits,
       created_at: new Date().toISOString()
     }
 
-    const { error } = await supabase.from('transactions').insert(newTransaction)
+    const { error } = await supabase.from('transactions').insert(newExpense)
 
     if (error) {
       console.error(error)
@@ -108,30 +113,25 @@ export default function AddExpense() {
     router.push(`/group/${groupId}`)
   }
 
-  if (!group) return <p>Carregando...</p>
+  if (!group || participants.length === 0) return <p>Carregando...</p>
 
   return (
     <div className="min-h-screen bg-[#F7F7F7]">
-
-      {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href={`/group/${groupId}`}>
             <ArrowLeft className="w-6 h-6 text-gray-600" />
           </Link>
+
           <h1 className="text-lg font-semibold text-gray-800">Adicionar gasto</h1>
-          <button 
-            onClick={handleSave}
-            className="text-[#5BC5A7] font-medium"
-          >
-            Salvar
-          </button>
+
+          <button onClick={handleSave} className="text-[#5BC5A7] font-medium">Salvar</button>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        
-        {/* Valor */}
+
+        {/* VALOR */}
         <div className="bg-white p-6 rounded-xl shadow-sm">
           <label className="text-gray-600 font-medium">Valor</label>
           <input
@@ -144,7 +144,7 @@ export default function AddExpense() {
           />
         </div>
 
-        {/* Descrição */}
+        {/* DESCRIÇÃO */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="block font-medium text-gray-600">Descrição</label>
           <input
@@ -155,12 +155,12 @@ export default function AddExpense() {
           />
         </div>
 
-        {/* Quem pagou */}
+        {/* QUEM PAGOU */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="font-medium text-gray-600">Quem pagou?</label>
 
-          {group.participantsList.map(p => (
-            <button 
+          {participants.map(p => (
+            <button
               key={p.id}
               onClick={() => setPayerId(p.id)}
               className={`w-full text-left p-3 border rounded-lg mt-2 ${
@@ -172,12 +172,12 @@ export default function AddExpense() {
           ))}
         </div>
 
-        {/* Tipo de divisão */}
+        {/* TIPO DE DIVISÃO */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="font-medium text-gray-600">Como dividir?</label>
 
           <div className="flex gap-3 mt-3">
-            <button 
+            <button
               onClick={() => setSplitType("equal")}
               className={`flex-1 p-2 rounded-lg ${
                 splitType === "equal" ? "bg-[#5BC5A7] text-white" : "bg-gray-200"
@@ -186,7 +186,7 @@ export default function AddExpense() {
               Igual
             </button>
 
-            <button 
+            <button
               onClick={() => setSplitType("custom")}
               className={`flex-1 p-2 rounded-lg ${
                 splitType === "custom" ? "bg-[#5BC5A7] text-white" : "bg-gray-200"
@@ -200,10 +200,10 @@ export default function AddExpense() {
             <div className="mt-4 space-y-3">
               <p className="text-sm text-gray-600">Defina o peso de cada pessoa:</p>
 
-              {group.participantsList.map(p => (
+              {participants.map(p => (
                 <div key={p.id} className="flex justify-between items-center border p-2 rounded-lg">
                   <span>{p.name}</span>
-                  <input 
+                  <input
                     type="number"
                     min={0}
                     value={weights[p.id]}
@@ -213,7 +213,7 @@ export default function AddExpense() {
                 </div>
               ))}
 
-              <button 
+              <button
                 onClick={calculateCustomSplits}
                 className="mt-3 bg-[#5BC5A7] text-white px-4 py-2 rounded-lg"
               >
@@ -222,16 +222,13 @@ export default function AddExpense() {
 
               {Object.keys(calculatedSplits).length > 0 && (
                 <div className="mt-3 p-3 bg-gray-100 rounded-lg">
-                  {group.participantsList.map(p => (
-                    <p key={p.id}>
-                      <strong>{p.name}:</strong> R$ {calculatedSplits[p.id]?.toFixed(2)}
-                    </p>
+                  {participants.map(p => (
+                    <p key={p.id}><strong>{p.name}:</strong> R$ {calculatedSplits[p.id]?.toFixed(2)}</p>
                   ))}
                 </div>
               )}
             </div>
           )}
-
         </div>
 
       </main>
