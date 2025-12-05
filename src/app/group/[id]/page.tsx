@@ -41,7 +41,12 @@ export default function GroupPage() {
         return
       }
 
-      setGroup(data)
+      // 🔥 Garantir compatibilidade com "participants" OU "participantsList"
+      setGroup({
+        ...data,
+        participants: data.participants ?? data.participantsList ?? []
+      })
+
       setLoading(false)
     }
 
@@ -58,6 +63,7 @@ export default function GroupPage() {
 
   return (
     <div className="min-h-screen bg-[#F7F7F7] pb-20">
+
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
@@ -81,6 +87,7 @@ export default function GroupPage() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="grid grid-cols-2 gap-4">
+            
             <div className="text-center">
               <p className="text-sm text-gray-600 mb-1">Total gasto</p>
               <p className="text-2xl font-bold text-gray-800">
@@ -114,18 +121,17 @@ export default function GroupPage() {
                 </div>
               )}
             </div>
+
           </div>
         </div>
       </div>
 
       {/* Participants */}
       <main className="max-w-4xl mx-auto px-4 py-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">
-          Participantes
-        </h2>
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Participantes</h2>
 
         <div className="space-y-3">
-          {group.participants.map((p) => (
+          {(group.participants ?? []).map((p) => (
             <div key={p.id} className="bg-white p-4 rounded-xl shadow-sm border">
               <p className="text-gray-800 font-medium">{p.name}</p>
               {p.email && (
@@ -135,7 +141,7 @@ export default function GroupPage() {
           ))}
         </div>
 
-        {/* CTA Add expense */}
+        {/* Add Expense CTA */}
         <div className="mt-10 text-center">
           <Link href={`/group/${groupId}/add-expense`}>
             <button className="bg-[#5BC5A7] text-white px-6 py-3 rounded-lg hover:bg-[#4AB396] transition-colors">
@@ -145,13 +151,13 @@ export default function GroupPage() {
         </div>
       </main>
 
-      {/* Floating button */}
+      {/* Floating Button */}
       <Link href={`/group/${groupId}/add-expense`}>
         <button className="fixed bottom-20 right-6 w-16 h-16 bg-[#5BC5A7] rounded-full flex items-center justify-center shadow-lg hover:bg-[#4AB396] hover:scale-110 transition-all">
           <Plus className="w-8 h-8 text-white" />
         </button>
       </Link>
+
     </div>
   )
 }
-
