@@ -15,9 +15,9 @@ interface Participant {
 interface Group {
   id: string
   name: string
-  participantsList: Participant[]
-  transactions: any[]
-  totalSpent: number
+  participants: Participant[]
+  participantsList?: Participant[] // compatibilidade
+  total_spent: number
   balance: number
 }
 
@@ -34,33 +34,46 @@ export default function AddExpense() {
   const [weights, setWeights] = useState<Record<string, number>>({})
   const [calculatedSplits, setCalculatedSplits] = useState<Record<string, number>>({})
 
+  // -------------------------------
+  // 🚀 Carregar grupo com fallback seguro
+  // -------------------------------
   useEffect(() => {
     async function loadGroup() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('groups')
         .select('*')
         .eq('id', groupId)
         .single()
 
-      if (data) {
-  // compatibilidade para o código atual
-  const participants = data.participants || data.participantsList || [];
-  
-  setGroup({
-    ...data,
-    participantsList: participants
-  });
+      if (error || !data) {
+        console.error(error)
+        return
+      }
 
-  const w: Record<string, number> = {};
-  participants.forEach(p => (w[p.id] = 1));
-  setWeights(w);
+      // Compatibilidade: usar participants OU participantsList
+      const participants = data.participants || data.participantsList || []
 
-  setPayerId(participants[0]?.id || '');
-}
+      const formattedGroup: Group = {
+        ...data,
+        participants,
+        participantsList: participants
+      }
+
+      setGroup(formattedGroup)
+
+      const w: Record<string, number> = {}
+      participants.forEach(p => (w[p.id] = 1))
+      setWeights(w)
+
+      setPayerId(participants[0]?.id || '')
+    }
 
     loadGroup()
   }, [groupId])
 
+  // -------------------------------
+  // 🔢 Calcular rateio personalizado
+  // -------------------------------
   function calculateCustomSplits() {
     const total = parseFloat(amount)
     if (!total || total <= 0) return {}
@@ -68,7 +81,7 @@ export default function AddExpense() {
     const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0)
 
     const result: Record<string, number> = {}
-    group?.participantsList.forEach(p => {
+    group?.participants.forEach(p => {
       const w = weights[p.id]
       result[p.id] = parseFloat(((total * w) / totalWeight).toFixed(2))
     })
@@ -77,6 +90,9 @@ export default function AddExpense() {
     return result
   }
 
+  // -------------------------------
+  // 💾 Salvar gasto
+  // -------------------------------
   async function handleSave() {
     if (!amount || !description || !payerId) {
       alert('Preencha todos os campos')
@@ -86,8 +102,8 @@ export default function AddExpense() {
     let splitsToSave: Record<string, number> = {}
 
     if (splitType === 'equal') {
-      const equalValue = parseFloat(amount) / (group!.participantsList.length)
-      group?.participantsList.forEach(p => {
+      const equalValue = parseFloat(amount) / group!.participants.length
+      group?.participants.forEach(p => {
         splitsToSave[p.id] = parseFloat(equalValue.toFixed(2))
       })
     } else {
@@ -100,7 +116,7 @@ export default function AddExpense() {
       amount: parseFloat(amount),
       description,
       payer_id: payerId,
-      participants: group!.participantsList.map(p => p.id),
+      participants: group!.participants.map(p => p.id),
       splits: splitsToSave,
       created_at: new Date().toISOString()
     }
@@ -120,7 +136,7 @@ export default function AddExpense() {
 
   return (
     <div className="min-h-screen bg-[#F7F7F7]">
-      
+
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
@@ -138,7 +154,7 @@ export default function AddExpense() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        
+
         {/* Valor */}
         <div className="bg-white p-6 rounded-xl shadow-sm">
           <label className="text-gray-600 font-medium">Valor</label>
@@ -167,7 +183,7 @@ export default function AddExpense() {
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="font-medium text-gray-600">Quem pagou?</label>
 
-          {group.participantsList.map(p => (
+          {group.participantsList!.map(p => (
             <button 
               key={p.id}
               onClick={() => setPayerId(p.id)}
@@ -209,7 +225,7 @@ export default function AddExpense() {
             <div className="mt-4 space-y-3">
               <p className="text-sm text-gray-600">Defina o peso de cada pessoa:</p>
 
-              {group.participantsList.map(p => (
+              {group.participantsList!.map(p => (
                 <div key={p.id} className="flex justify-between items-center border p-2 rounded-lg">
                   <span>{p.name}</span>
                   <input 
@@ -229,10 +245,10 @@ export default function AddExpense() {
                 Calcular divisão
               </button>
 
-              {/* Mostrar o resultado da divisão */}
+              {/* Mostrar resultado */}
               {Object.keys(calculatedSplits).length > 0 && (
                 <div className="mt-3 p-3 bg-gray-100 rounded-lg">
-                  {group.participantsList.map(p => (
+                  {group.participantsList!.map(p => (
                     <p key={p.id}>
                       <strong>{p.name}:</strong> R$ {calculatedSplits[p.id]?.toFixed(2)}
                     </p>
@@ -241,7 +257,6 @@ export default function AddExpense() {
               )}
             </div>
           )}
-
         </div>
 
       </main>
