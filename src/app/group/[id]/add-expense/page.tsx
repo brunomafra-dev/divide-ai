@@ -37,11 +37,16 @@ export default function AddExpense() {
 
   useEffect(() => {
     async function loadGroup() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('groups')
         .select('*')
         .eq('id', groupId)
         .single()
+
+      if (error) {
+        console.error(error)
+        return
+      }
 
       if (data) {
         setGroup(data)
@@ -50,7 +55,7 @@ export default function AddExpense() {
         setParticipants(list)
 
         const defaultWeights: Record<string, number> = {}
-        list.forEach(p => (defaultWeights[p.id] = 1))
+        list.forEach(p => defaultWeights[p.id] = 1)
         setWeights(defaultWeights)
 
         setPayerId(list[0]?.id || '')
@@ -86,23 +91,25 @@ export default function AddExpense() {
 
     if (splitType === 'equal') {
       const equal = parseFloat(value) / participants.length
-      participants.forEach(p => (splits[p.id] = parseFloat(equal.toFixed(2))))
+      participants.forEach(p => splits[p.id] = parseFloat(equal.toFixed(2)))
     } else {
       splits = calculateCustomSplits()
     }
 
     const newExpense = {
       id: crypto.randomUUID(),
-      groupid: groupId,
+      group_id: groupId,       // <-- NOME CORRETO NO SUPABASE
       value: parseFloat(value),
       description,
-      payerid: payerId,
+      payer_id: payerId,       // <-- NOME CORRETO NO SUPABASE
       participants: participants.map(p => p.id),
       splits,
       created_at: new Date().toISOString()
     }
 
-    const { error } = await supabase.from('transactions').insert(newExpense)
+    const { error } = await supabase
+      .from('transactions')
+      .insert(newExpense)
 
     if (error) {
       console.error(error)
@@ -117,6 +124,7 @@ export default function AddExpense() {
 
   return (
     <div className="min-h-screen bg-[#F7F7F7]">
+
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href={`/group/${groupId}`}>
@@ -125,13 +133,14 @@ export default function AddExpense() {
 
           <h1 className="text-lg font-semibold text-gray-800">Adicionar gasto</h1>
 
-          <button onClick={handleSave} className="text-[#5BC5A7] font-medium">Salvar</button>
+          <button onClick={handleSave} className="text-[#5BC5A7] font-medium">
+            Salvar
+          </button>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
 
-        {/* VALOR */}
         <div className="bg-white p-6 rounded-xl shadow-sm">
           <label className="text-gray-600 font-medium">Valor</label>
           <input
@@ -144,7 +153,6 @@ export default function AddExpense() {
           />
         </div>
 
-        {/* DESCRIÇÃO */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="block font-medium text-gray-600">Descrição</label>
           <input
@@ -155,7 +163,6 @@ export default function AddExpense() {
           />
         </div>
 
-        {/* QUEM PAGOU */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="font-medium text-gray-600">Quem pagou?</label>
 
@@ -172,7 +179,6 @@ export default function AddExpense() {
           ))}
         </div>
 
-        {/* TIPO DE DIVISÃO */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="font-medium text-gray-600">Como dividir?</label>
 
@@ -198,11 +204,13 @@ export default function AddExpense() {
 
           {splitType === "custom" && (
             <div className="mt-4 space-y-3">
+
               <p className="text-sm text-gray-600">Defina o peso de cada pessoa:</p>
 
               {participants.map(p => (
                 <div key={p.id} className="flex justify-between items-center border p-2 rounded-lg">
                   <span>{p.name}</span>
+
                   <input
                     type="number"
                     min={0}
@@ -223,12 +231,16 @@ export default function AddExpense() {
               {Object.keys(calculatedSplits).length > 0 && (
                 <div className="mt-3 p-3 bg-gray-100 rounded-lg">
                   {participants.map(p => (
-                    <p key={p.id}><strong>{p.name}:</strong> R$ {calculatedSplits[p.id]?.toFixed(2)}</p>
+                    <p key={p.id}>
+                      <strong>{p.name}:</strong> R$ {calculatedSplits[p.id]?.toFixed(2)}
+                    </p>
                   ))}
                 </div>
               )}
+
             </div>
           )}
+
         </div>
 
       </main>
