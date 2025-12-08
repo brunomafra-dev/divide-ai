@@ -78,12 +78,14 @@ export default function GroupPage() {
     transactions.forEach(tx => {
       total += tx.value;
 
+      // Se eu paguei, recebo crédito
       if (tx.payer_id === me) {
         myBalance += tx.value;
       }
 
-      const myPart = tx.splits[me] ?? 0;
-      myBalance -= myPart;
+      // Meu custo na divisão
+      const myShare = tx.splits[me] ?? 0;
+      myBalance -= myShare;
     });
 
     setTotalSpent(total);
@@ -164,12 +166,34 @@ export default function GroupPage() {
         )}
 
         <div className="space-y-3">
-          {transactions.map(tx => (
-            <div key={tx.id} className="bg-white p-4 rounded-xl shadow-sm border">
-              <p className="font-medium text-gray-800">{tx.description}</p>
-              <p className="text-gray-600 text-sm">R$ {tx.value.toFixed(2)}</p>
-            </div>
-          ))}
+          {transactions.map(tx => {
+            const payer = group.participants.find(p => p.id === tx.payer_id)?.name || "Alguém";
+
+            return (
+              <div key={tx.id} className="bg-white p-4 rounded-xl shadow-sm border">
+                <div className="flex justify-between">
+                  <p className="font-medium text-gray-800">{tx.description}</p>
+                  <p className="font-semibold">R$ {tx.value.toFixed(2)}</p>
+                </div>
+
+                <p className="text-sm text-gray-500 mt-1">
+                  Pago por <strong>{payer}</strong>
+                </p>
+
+                <div className="mt-2 text-sm text-gray-600">
+                  <p>Divisão:</p>
+                  {Object.entries(tx.splits).map(([pid, v]) => {
+                    const name = group.participants.find(p => p.id === pid)?.name || pid;
+                    return (
+                      <p key={pid} className="ml-2">
+                        {name}: R$ {v.toFixed(2)}
+                      </p>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Botão flutuante */}
