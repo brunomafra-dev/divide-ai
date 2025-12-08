@@ -35,6 +35,9 @@ export default function AddExpense() {
   const [weights, setWeights] = useState<Record<string, number>>({})
   const [calculatedSplits, setCalculatedSplits] = useState<Record<string, number>>({})
 
+  // ==============================================
+  // Carrega dados do grupo
+  // ==============================================
   useEffect(() => {
     async function loadGroup() {
       const { data, error } = await supabase
@@ -54,10 +57,12 @@ export default function AddExpense() {
         const list = data.participants ?? data.participantsList ?? []
         setParticipants(list)
 
+        // Inicializa pesos
         const defaultWeights: Record<string, number> = {}
-        list.forEach(p => defaultWeights[p.id] = 1)
+        list.forEach(p => (defaultWeights[p.id] = 1))
         setWeights(defaultWeights)
 
+        // Pagador padrão = primeiro participante
         setPayerId(list[0]?.id || '')
       }
     }
@@ -65,6 +70,9 @@ export default function AddExpense() {
     loadGroup()
   }, [groupId])
 
+  // ==============================================
+  // Cálculo personalizada
+  // ==============================================
   function calculateCustomSplits() {
     const total = parseFloat(value)
     if (!total || total <= 0) return {}
@@ -81,6 +89,9 @@ export default function AddExpense() {
     return result
   }
 
+  // ==============================================
+  // SALVAR DESPESA
+  // ==============================================
   async function handleSave() {
     if (!value || !description || !payerId) {
       alert('Preencha todos os campos')
@@ -91,17 +102,19 @@ export default function AddExpense() {
 
     if (splitType === 'equal') {
       const equal = parseFloat(value) / participants.length
-      participants.forEach(p => splits[p.id] = parseFloat(equal.toFixed(2)))
+      participants.forEach(p => {
+        splits[p.id] = parseFloat(equal.toFixed(2))
+      })
     } else {
       splits = calculateCustomSplits()
     }
 
     const newExpense = {
       id: crypto.randomUUID(),
-      group_id: groupId,       // <-- NOME CORRETO NO SUPABASE
+      groupid: groupId,                 // <<< NOME CORRETO NO SUPABASE
       value: parseFloat(value),
       description,
-      payer_id: payerId,       // <-- NOME CORRETO NO SUPABASE
+      payerid: payerId,                 // <<< NOME CORRETO NO SUPABASE
       participants: participants.map(p => p.id),
       splits,
       created_at: new Date().toISOString()
@@ -141,6 +154,7 @@ export default function AddExpense() {
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
 
+        {/* Valor */}
         <div className="bg-white p-6 rounded-xl shadow-sm">
           <label className="text-gray-600 font-medium">Valor</label>
           <input
@@ -153,6 +167,7 @@ export default function AddExpense() {
           />
         </div>
 
+        {/* Descrição */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="block font-medium text-gray-600">Descrição</label>
           <input
@@ -163,6 +178,7 @@ export default function AddExpense() {
           />
         </div>
 
+        {/* Quem pagou */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="font-medium text-gray-600">Quem pagou?</label>
 
@@ -179,6 +195,7 @@ export default function AddExpense() {
           ))}
         </div>
 
+        {/* Divisão */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="font-medium text-gray-600">Como dividir?</label>
 
@@ -204,13 +221,11 @@ export default function AddExpense() {
 
           {splitType === "custom" && (
             <div className="mt-4 space-y-3">
-
               <p className="text-sm text-gray-600">Defina o peso de cada pessoa:</p>
 
               {participants.map(p => (
                 <div key={p.id} className="flex justify-between items-center border p-2 rounded-lg">
                   <span>{p.name}</span>
-
                   <input
                     type="number"
                     min={0}
@@ -237,10 +252,8 @@ export default function AddExpense() {
                   ))}
                 </div>
               )}
-
             </div>
           )}
-
         </div>
 
       </main>
