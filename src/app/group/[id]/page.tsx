@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, Plus, TrendingUp, TrendingDown, Settings } from 'lucide-react'
+import { ArrowLeft, Plus, TrendingUp, TrendingDown } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -10,6 +10,16 @@ interface Participant {
   id: string
   name: string
   email?: string
+}
+
+interface Transaction {
+  id: string
+  description: string
+  value: number
+  payer_id: string
+  participants: string[]
+  splits: Record<string, number>
+  created_at: string
 }
 
 interface Group {
@@ -27,31 +37,55 @@ export default function GroupPage() {
 
   const [group, setGroup] = useState<Group | null>(null)
   const [loading, setLoading] = useState(true)
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [yourBalance, setYourBalance] = useState(0)
 
   useEffect(() => {
-    async function loadGroup() {
-      const { data, error } = await supabase
-        .from('groups')
-        .select('*')
-        .eq('id', groupId)
-        .single()
+    loadData()
+  }, [groupId])
 
-      if (error) {
-        console.error(error)
-        return
-      }
+  async function loadData() {
+    // 1 — Carrega o grupo
+    const { data: groupData } = await supabase
+      .from('groups')
+      .select('*')
+      .eq('id', groupId)
+      .single()
 
-      // 🔥 Garantir compatibilidade com "participants" OU "participantsList"
-      setGroup({
-        ...data,
-        participants: data.participants ?? data.participantsList ?? []
-      })
+    if (!groupData) return
 
-      setLoading(false)
+    setGroup(groupData)
+
+    // 2 — Carrega transações
+    const { data: txData } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('groupid', groupId)
+      .order('created_at', { ascending: false })
+
+    setTransactions(txData || [])
+
+    // 3 — Recalcula saldo do usuário "self"
+    const me = groupData.participants.find(p => p.id === 'self')
+    if (me) {
+      const bal = calcBalance(me.id, txData || [])
+      setYourBalance(bal)
     }
 
-    loadGroup()
-  }, [groupId])
+    setLoading(false)
+  }
+
+  function calcBalance(userId: string, all: Transaction[]) {
+    let balance = 0
+
+    all.forEach(tx => {
+      const paid = tx.payer_id === userId ? tx.value : 0
+      const owes = tx.splits[userId] ?? 0
+      balance += paid - owes
+    })
+
+    return balance
+  }
 
   if (loading || !group) {
     return (
@@ -62,102 +96,114 @@ export default function GroupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] pb-20">
-
+    <div className="min-h-screen bg-[#F7F7F7] pb-24">
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/">
-            <button className="text-gray-600 hover:text-gray-800">
-              <ArrowLeft className="w-6 h-6" />
-            </button>
+            <ArrowLeft className="w-6 h-6 text-gray-600" />
           </Link>
 
           <h1 className="text-lg font-semibold text-gray-800">{group.name}</h1>
 
-          <Link href={`/group/${groupId}/settings`}>
-            <button className="text-gray-600 hover:text-gray-800">
-              <Settings className="w-6 h-6" />
-            </button>
-          </Link>
+          <div className="w-6" />
         </div>
       </header>
 
-      {/* Balance */}
+      {/* Balance Section */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="grid grid-cols-2 gap-4">
-            
-            <div className="text-center">
-              <p className="text-sm text-gray-600 mb-1">Total gasto</p>
-              <p className="text-2xl font-bold text-gray-800">
-                R$ {Number(group.total_spent).toFixed(2)}
-              </p>
-            </div>
+          
+          {/* Total gasto */}
+          <div className="text-center mb-6">
+            <p className="text-sm text-gray-600">Total gasto</p>
+            <p className="text-2xl font-bold text-gray-800">
+              R$ {Number(group.total_spent).toFixed(2)}
+            </p>
+          </div>
 
-            <div className="text-center">
-              <p className="text-sm text-gray-600 mb-1">Seu saldo</p>
+          {/* Seu saldo */}
+          <div className="text-center">
+            <p className="text-sm text-gray-600">Seu saldo</p>
 
-              {group.balance === 0 ? (
-                <div className="flex items-center justify-center gap-2">
-                  <p className="text-2xl font-bold text-gray-800">R$ 0,00</p>
-                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                    zerado
-                  </span>
-                </div>
-              ) : group.balance > 0 ? (
-                <div className="flex items-center justify-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-[#5BC5A7]" />
-                  <p className="text-2xl font-bold text-[#5BC5A7]">
-                    R$ {Number(group.balance).toFixed(2)}
-                  </p>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center gap-2">
-                  <TrendingDown className="w-5 h-5 text-[#FF6B6B]" />
-                  <p className="text-2xl font-bold text-[#FF6B6B]">
-                    R$ {Math.abs(Number(group.balance)).toFixed(2)}
-                  </p>
-                </div>
-              )}
-            </div>
+            {yourBalance === 0 && (
+              <p className="text-lg font-semibold text-gray-700">R$ 0,00</p>
+            )}
 
+            {yourBalance > 0 && (
+              <div className="flex justify-center gap-2 items-center">
+                <TrendingUp className="text-[#5BC5A7]" />
+                <p className="text-xl font-bold text-[#5BC5A7]">
+                  R$ {yourBalance.toFixed(2)}
+                </p>
+              </div>
+            )}
+
+            {yourBalance < 0 && (
+              <div className="flex justify-center gap-2 items-center">
+                <TrendingDown className="text-[#FF6B6B]" />
+                <p className="text-xl font-bold text-[#FF6B6B]">
+                  – R$ {Math.abs(yourBalance).toFixed(2)}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Participants */}
+      {/* Transactions List */}
       <main className="max-w-4xl mx-auto px-4 py-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">Participantes</h2>
+
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Gastos</h2>
+
+        {transactions.length === 0 && (
+          <p className="text-gray-500 text-center mt-10">
+            Nenhum gasto registrado ainda.
+          </p>
+        )}
 
         <div className="space-y-3">
-          {(group.participants ?? []).map((p) => (
-            <div key={p.id} className="bg-white p-4 rounded-xl shadow-sm border">
-              <p className="text-gray-800 font-medium">{p.name}</p>
-              {p.email && (
-                <p className="text-xs text-gray-500">{p.email}</p>
-              )}
-            </div>
-          ))}
+          {transactions.map(tx => {
+            const payer = group.participants.find(p => p.id === tx.payer_id)
+            return (
+              <div 
+                key={tx.id} 
+                className="bg-white p-4 rounded-xl shadow-sm border"
+              >
+                <div className="flex justify-between">
+                  <p className="font-semibold text-gray-800">
+                    {tx.description}
+                  </p>
+                  <p className="font-bold text-gray-800">
+                    R$ {tx.value.toFixed(2)}
+                  </p>
+                </div>
+
+                <p className="text-sm text-gray-500 mt-1">
+                  Pago por <strong>{payer?.name || 'Desconhecido'}</strong>
+                </p>
+              </div>
+            )
+          })}
         </div>
 
-        {/* Add Expense CTA */}
+        {/* Add Expense Button */}
         <div className="mt-10 text-center">
           <Link href={`/group/${groupId}/add-expense`}>
-            <button className="bg-[#5BC5A7] text-white px-6 py-3 rounded-lg hover:bg-[#4AB396] transition-colors">
+            <button className="bg-[#5BC5A7] text-white px-6 py-3 rounded-lg shadow hover:bg-[#4AB396]">
               Adicionar gasto
             </button>
           </Link>
         </div>
+
       </main>
 
-      {/* Floating Button */}
+      {/* Floating Add Button */}
       <Link href={`/group/${groupId}/add-expense`}>
         <button className="fixed bottom-20 right-6 w-16 h-16 bg-[#5BC5A7] rounded-full flex items-center justify-center shadow-lg hover:bg-[#4AB396] hover:scale-110 transition-all">
-          <Plus className="w-8 h-8 text-white" />
+          <Plus className="text-white w-8 h-8" />
         </button>
       </Link>
-
     </div>
   )
 }
