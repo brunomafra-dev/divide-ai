@@ -51,26 +51,26 @@ export default function GroupSettings() {
   }, [groupId])
 
 
-  async function deleteGroup() {
-    if (!confirm('Tem certeza que deseja apagar este grupo e todos os gastos?')) {
-      return
-    }
-
-    // Apagar transações do grupo
-    await supabase
-      .from('transactions')
-      .delete()
-      .eq('groupid', groupId)
-
-    // Apagar o grupo
-    await supabase
-      .from('groups')
-      .delete()
-      .eq('id', groupId)
-
-    alert('Grupo apagado com sucesso!')
-    router.push('/')
+ async function deleteGroup() {
+  if (!confirm("Tem certeza que deseja apagar este grupo e todos os gastos?")) {
+    return;
   }
+
+  // Apagar transações do grupo (coluna correta: groupid)
+  await supabase
+    .from("transactions")
+    .delete()
+    .eq("groupid", groupId);
+
+  // Apagar o grupo (coluna correta: id)
+  await supabase
+    .from("groups")
+    .delete()
+    .eq("id", groupId);
+
+  alert("Grupo apagado com sucesso!");
+  router.push("/");
+}
 
   if (loading || !group) {
     return (
