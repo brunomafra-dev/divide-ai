@@ -57,12 +57,10 @@ export default function AddExpense() {
         const list = data.participants ?? data.participantsList ?? []
         setParticipants(list)
 
-        // Inicializa pesos
         const defaultWeights: Record<string, number> = {}
         list.forEach(p => (defaultWeights[p.id] = 1))
         setWeights(defaultWeights)
 
-        // Pagador padrão = primeiro participante
         setPayerId(list[0]?.id || '')
       }
     }
@@ -71,7 +69,7 @@ export default function AddExpense() {
   }, [groupId])
 
   // ==============================================
-  // Cálculo personalizada
+  // Cálculo personalizado
   // ==============================================
   function calculateCustomSplits() {
     const total = parseFloat(value)
@@ -102,27 +100,23 @@ export default function AddExpense() {
 
     if (splitType === 'equal') {
       const equal = parseFloat(value) / participants.length
-      participants.forEach(p => {
-        splits[p.id] = parseFloat(equal.toFixed(2))
-      })
+      participants.forEach(p => splits[p.id] = parseFloat(equal.toFixed(2)))
     } else {
       splits = calculateCustomSplits()
     }
 
     const newExpense = {
       id: crypto.randomUUID(),
-      groupid: groupId,                 // <<< NOME CORRETO NO SUPABASE
+      group_id: groupId,      // CORRETO
       value: parseFloat(value),
       description,
-      payerid: payerId,                 // <<< NOME CORRETO NO SUPABASE
+      payer_id: payerId,      // CORRETO
       participants: participants.map(p => p.id),
       splits,
       created_at: new Date().toISOString()
     }
 
-    const { error } = await supabase
-      .from('transactions')
-      .insert(newExpense)
+    const { error } = await supabase.from('transactions').insert(newExpense)
 
     if (error) {
       console.error(error)
@@ -146,9 +140,7 @@ export default function AddExpense() {
 
           <h1 className="text-lg font-semibold text-gray-800">Adicionar gasto</h1>
 
-          <button onClick={handleSave} className="text-[#5BC5A7] font-medium">
-            Salvar
-          </button>
+          <button onClick={handleSave} className="text-[#5BC5A7] font-medium">Salvar</button>
         </div>
       </header>
 
@@ -181,7 +173,6 @@ export default function AddExpense() {
         {/* Quem pagou */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="font-medium text-gray-600">Quem pagou?</label>
-
           {participants.map(p => (
             <button
               key={p.id}
@@ -195,7 +186,7 @@ export default function AddExpense() {
           ))}
         </div>
 
-        {/* Divisão */}
+        {/* Tipo de divisão */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="font-medium text-gray-600">Como dividir?</label>
 
