@@ -4,24 +4,6 @@ import { ArrowLeft, Trash2, Users } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-
-interface Participant {
-  id: string
-  name: string
-  email?: string
-}
-
-interface Group {
-  id: string
-  name: string
-  category: string
-  participantsList: Participant[]
-  simplifyDebts?: boolean'use client'
-
-import { ArrowLeft, Trash2, Users } from 'lucide-react'
-import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
 interface Participant {
@@ -182,3 +164,4 @@ export default function GroupSettings() {
     </div>
   )
 }
+
