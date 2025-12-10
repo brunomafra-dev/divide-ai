@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { ArrowLeft, Plus, TrendingUp, TrendingDown, Settings, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -29,7 +29,6 @@ interface GroupData {
 
 export default function GroupPage() {
   const { id: groupId } = useParams();
-
   const [group, setGroup] = useState<GroupData | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,58 +36,49 @@ export default function GroupPage() {
   const [totalSpent, setTotalSpent] = useState(0);
   const [balance, setBalance] = useState(0);
 
-  // Controle do modal
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-
-  // ============================================================
-  // Carrega grupo + transações
-  // ============================================================
-
+  // ------------------------------------------------------------
+  // 1) Carrega grupo e transações
+  // ------------------------------------------------------------
   useEffect(() => {
-    loadData();
+    async function load() {
+      const { data: g } = await supabase
+        .from("groups")
+        .select("*")
+        .eq("id", groupId)
+        .single();
+
+      if (!g) return;
+
+      setGroup(g);
+
+      const { data: t } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("group_id", groupId);
+
+      setTransactions(t || []);
+      calculate(g, t || []);
+      setLoading(false);
+    }
+
+    load();
   }, [groupId]);
 
-  async function loadData() {
-    setLoading(true);
-
-    const { data: g } = await supabase
-      .from("groups")
-      .select("*")
-      .eq("id", groupId)
-      .single();
-
-    if (!g) return;
-
-    setGroup(g);
-
-    const { data: t } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("group_id", groupId);
-
-    setTransactions(t || []);
-    calculate(g, t || []);
-    setLoading(false);
-  }
-
-
-  // ============================================================
-  // Calcula totais
-  // ============================================================
-
+  // ------------------------------------------------------------
+  // 2) Calcula total e saldos
+  // ------------------------------------------------------------
   function calculate(group: GroupData, transactions: Transaction[]) {
     let total = 0;
     let myBalance = 0;
-
-    const me = group.participants[0].id; // sempre "Você"
+    const me = group.participants[0].id; // "Você"
 
     transactions.forEach(tx => {
       total += tx.value;
 
-      if (tx.payer_id === me) {
-        myBalance += tx.value;
-      }
+      if (tx.payer_id === me) myBalance += tx.value;
 
       const myShare = tx.splits[me] ?? 0;
       myBalance -= myShare;
@@ -98,20 +88,28 @@ export default function GroupPage() {
     setBalance(myBalance);
   }
 
-
-  // ============================================================
-  // Excluir transação
-  // ============================================================
-
-  async function deleteTransaction() {
-    if (!deleteId) return;
-
-    await supabase.from("transactions").delete().eq("id", deleteId);
-
-    setDeleteId(null);
-    loadData(); // recarrega dados
+  // ------------------------------------------------------------
+  // 3) Abrir modal de apagar gasto
+  // ------------------------------------------------------------
+  function openDeleteModal(tx: Transaction) {
+    setDeleteTarget(tx);
+    setShowDeleteModal(true);
   }
 
+  async function deleteExpense() {
+    if (!deleteTarget) return;
+
+    await supabase.from("transactions").delete().eq("id", deleteTarget.id);
+
+    setTransactions(prev => prev.filter(t => t.id !== deleteTarget.id));
+    if (group) calculate(group, transactions.filter(t => t.id !== deleteTarget.id));
+
+    setShowDeleteModal(false);
+  }
+
+  // ------------------------------------------------------------
+  // RENDER
+  // ------------------------------------------------------------
 
   if (loading || !group)
     return (
@@ -120,13 +118,8 @@ export default function GroupPage() {
       </div>
     );
 
-
-  // ============================================================
-  // RENDER
-  // ============================================================
-
   return (
-    <div className="min-h-screen bg-[#F7F7F7] pb-20">
+    <div className="min-h-screen bg-[#F7F7F7] pb-24">
 
       {/* Header */}
       <header className="bg-white shadow-sm">
@@ -143,11 +136,9 @@ export default function GroupPage() {
         </div>
       </header>
 
-
       {/* Totais */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-6">
-
           <div className="grid grid-cols-2 text-center">
 
             <div>
@@ -179,8 +170,6 @@ export default function GroupPage() {
         </div>
       </div>
 
-
-
       {/* Lista de gastos */}
       <main className="max-w-4xl mx-auto px-4 py-6">
 
@@ -192,44 +181,53 @@ export default function GroupPage() {
 
         <div className="space-y-3">
           {transactions.map(tx => {
-            const payer = group.participants.find(p => p.id === tx.payer_id)?.name || "Alguém";
+            const payer =
+              group.participants.find(p => p.id === tx.payer_id)?.name || "Alguém";
 
             return (
-              <div key={tx.id} className="bg-white p-4 rounded-xl shadow-sm border relative">
+              <div key={tx.id} className="bg-white p-4 rounded-xl shadow-sm border">
+                <div className="flex justify-between items-start">
 
-                {/* Botão deletar */}
-                <button
-                  onClick={() => setDeleteId(tx.id)}
-                  className="absolute right-3 top-3 text-red-500 hover:text-red-700"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
+                  {/* ESQUERDA */}
+                  <div>
+                    <p className="font-medium text-gray-800">{tx.description}</p>
 
-                <div className="flex justify-between">
-                  <p className="font-medium text-gray-800">{tx.description}</p>
-                  <p className="font-semibold">R$ {tx.value.toFixed(2)}</p>
-                </div>
+                    <p className="text-sm text-gray-500">
+                      Pago por <strong>{payer}</strong>
+                    </p>
 
-                <p className="text-sm text-gray-500 mt-1">
-                  Pago por <strong>{payer}</strong>
-                </p>
+                    <div className="mt-2 text-sm text-gray-600">
+                      <p>Divisão:</p>
 
-                <div className="mt-2 text-sm text-gray-600">
-                  <p>Divisão:</p>
-                  {Object.entries(tx.splits).map(([pid, v]) => {
-                    const name = group.participants.find(p => p.id === pid)?.name || pid;
-                    return (
-                      <p key={pid} className="ml-2">
-                        {name}: R$ {v.toFixed(2)}
-                      </p>
-                    );
-                  })}
+                      {Object.entries(tx.splits).map(([pid, v]) => {
+                        const name =
+                          group.participants.find(p => p.id === pid)?.name || pid;
+
+                        return (
+                          <p key={pid} className="ml-2">
+                            {name}: R$ {v.toFixed(2)}
+                          </p>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* DIREITA: Valor + Lixinho alinhados */}
+                  <div className="flex flex-col items-end gap-2 min-w-[70px]">
+                    <p className="font-semibold text-right">R$ {tx.value.toFixed(2)}</p>
+
+                    <button
+                      onClick={() => openDeleteModal(tx)}
+                      className="p-1.5 rounded-full hover:bg-red-50"
+                    >
+                      <Trash2 className="w-5 h-5 text-red-500" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
-
 
         {/* Botão flutuante */}
         <Link href={`/group/${groupId}/add-expense`}>
@@ -240,43 +238,33 @@ export default function GroupPage() {
 
       </main>
 
-
-      {/* ======================================================
-           MODAL DE CONFIRMAÇÃO
-         ====================================================== */}
-
-      {deleteId && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-
-          <div className="bg-white w-[85%] max-w-md rounded-xl p-6 shadow-xl text-center">
-
-            <h2 className="text-lg font-semibold text-gray-800 mb-3">
-              Excluir gasto?
+      {/* Modal de deletar */}
+      {showDeleteModal && deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-xl w-80">
+            <h2 className="text-lg font-semibold text-gray-800">
+              Apagar gasto?
             </h2>
-
-            <p className="text-gray-600 mb-6">
-              Tem certeza que deseja excluir este gasto?
+            <p className="text-sm text-gray-500 mt-2">
+              Tem certeza que deseja remover "{deleteTarget.description}"?
             </p>
 
-            <div className="flex gap-3">
-
+            <div className="flex justify-end gap-3 mt-6">
               <button
-                onClick={() => setDeleteId(null)}
-                className="flex-1 py-2 rounded-lg bg-gray-200 text-gray-700"
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 rounded-lg border"
               >
                 Cancelar
               </button>
 
               <button
-                onClick={deleteTransaction}
-                className="flex-1 py-2 rounded-lg bg-red-500 text-white"
+                onClick={deleteExpense}
+                className="px-4 py-2 rounded-lg bg-red-500 text-white"
               >
-                Excluir
+                Apagar
               </button>
-
             </div>
           </div>
-
         </div>
       )}
 
