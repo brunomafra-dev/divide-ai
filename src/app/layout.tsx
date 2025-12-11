@@ -3,8 +3,11 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
-// Import all available fonts for AI usage
 import "../lib/fonts";
+
+// ADICIONADO AGORA:
+import Navbar from "@/components/Navbar";
+import ActionModalProvider from "@/components/ActionModalProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,10 +34,18 @@ export default function RootLayout({
       <head>
         <Script src="/lasy-bridge.js" strategy="beforeInteractive" />
       </head>
+
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#F7F7F7]`}
       >
-        {children}
+        {/* Provider do modal */}
+        <ActionModalProvider>
+          {/* Conteúdo da página */}
+          <div className="pb-32">{children}</div>
+
+          {/* Navbar fixa */}
+          <Navbar />
+        </ActionModalProvider>
       </body>
     </html>
   );
