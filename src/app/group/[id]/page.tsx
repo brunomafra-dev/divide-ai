@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  ArrowLeft,
-  Plus,
-  TrendingUp,
-  TrendingDown,
-  Settings,
-  Trash2
-} from "lucide-react";
+import { ArrowLeft, Plus, TrendingUp, TrendingDown, Settings, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -47,7 +40,7 @@ export default function GroupPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // ------------------------------------------------------------
-  // 1) Carrega grupo e transações
+  // 1) Carregar grupo + transações
   // ------------------------------------------------------------
   useEffect(() => {
     async function load() {
@@ -75,12 +68,13 @@ export default function GroupPage() {
   }, [groupId]);
 
   // ------------------------------------------------------------
-  // 2) Calcula total e saldos
+  // 2) Cálculo do total e saldo
   // ------------------------------------------------------------
   function calculate(group: GroupData, transactions: Transaction[]) {
     let total = 0;
     let myBalance = 0;
-    const me = group.participants[0].id; // "Você"
+
+    const me = group.participants[0].id;
 
     transactions.forEach(tx => {
       total += tx.value;
@@ -96,7 +90,7 @@ export default function GroupPage() {
   }
 
   // ------------------------------------------------------------
-  // 3) Abrir modal de deletar gasto
+  // 3) Modal excluir gasto
   // ------------------------------------------------------------
   function openDeleteModal(tx: Transaction) {
     setDeleteTarget(tx);
@@ -106,12 +100,14 @@ export default function GroupPage() {
   async function deleteExpense() {
     if (!deleteTarget) return;
 
-    await supabase.from("transactions").delete().eq("id", deleteTarget.id);
+    await supabase.from("transactions")
+      .delete()
+      .eq("id", deleteTarget.id);
 
-    const updated = transactions.filter(t => t.id !== deleteTarget.id);
-    setTransactions(updated);
+    const newList = transactions.filter(t => t.id !== deleteTarget.id);
+    setTransactions(newList);
 
-    if (group) calculate(group, updated);
+    if (group) calculate(group, newList);
 
     setShowDeleteModal(false);
   }
@@ -119,7 +115,6 @@ export default function GroupPage() {
   // ------------------------------------------------------------
   // RENDER
   // ------------------------------------------------------------
-
   if (loading || !group)
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -130,7 +125,7 @@ export default function GroupPage() {
   return (
     <div className="min-h-screen bg-[#F7F7F7] pb-24">
 
-      {/* Header */}
+      {/* HEADER */}
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/">
@@ -145,7 +140,7 @@ export default function GroupPage() {
         </div>
       </header>
 
-      {/* Totais */}
+      {/* TOTAL + SALDO */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="grid grid-cols-2 text-center">
@@ -158,9 +153,7 @@ export default function GroupPage() {
             <div>
               <p className="text-sm text-gray-500">Seu saldo</p>
 
-              {balance === 0 && (
-                <p className="text-2xl font-bold">R$ 0,00</p>
-              )}
+              {balance === 0 && <p className="text-2xl font-bold">R$ 0,00</p>}
 
               {balance > 0 && (
                 <p className="text-2xl font-bold text-[#5BC5A7] flex items-center justify-center gap-1">
@@ -179,7 +172,7 @@ export default function GroupPage() {
         </div>
       </div>
 
-      {/* Lista de gastos */}
+      {/* LISTA DE GASTOS */}
       <main className="max-w-4xl mx-auto px-4 py-6">
 
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Gastos</h2>
@@ -190,24 +183,23 @@ export default function GroupPage() {
 
         <div className="space-y-3">
           {transactions.map(tx => {
-            const payer =
-              group.participants.find(p => p.id === tx.payer_id)?.name || "Alguém";
+            const payer = group.participants.find(p => p.id === tx.payer_id)?.name || "Alguém";
 
             return (
               <div
                 key={tx.id}
-                onClick={() =>
-                  (window.location.href = `/group/${groupId}/edit-expense/${tx.id}`)
-                }
+                onClick={() => (window.location.href = `/group/${groupId}/edit-expense/${tx.id}`)}
                 className="bg-white p-4 rounded-xl shadow-sm border cursor-pointer active:scale-[0.98] transition-all"
               >
                 <div className="flex justify-between items-start">
 
                   {/* ESQUERDA */}
-                  <div>
+                  <div className="w-full">
                     <p className="font-medium text-gray-800">{tx.description}</p>
 
-                    <p className="text-sm text-gray-500">
+                    <p className="text-xs text-gray-400 mt-1">Toque para editar</p>
+
+                    <p className="text-sm text-gray-500 mt-2">
                       Pago por <strong>{payer}</strong>
                     </p>
 
@@ -215,9 +207,7 @@ export default function GroupPage() {
                       <p>Divisão:</p>
 
                       {Object.entries(tx.splits).map(([pid, v]) => {
-                        const name =
-                          group.participants.find(p => p.id === pid)?.name || pid;
-
+                        const name = group.participants.find(p => p.id === pid)?.name || pid;
                         return (
                           <p key={pid} className="ml-2">
                             {name}: R$ {v.toFixed(2)}
@@ -227,14 +217,12 @@ export default function GroupPage() {
                     </div>
                   </div>
 
-                  {/* DIREITA: valor + chevron + lixeira */}
+                  {/* DIREITA - VALOR + LIXO */}
                   <div
-                    className="flex items-center gap-3 min-w-[100px]"
-                    onClick={e => e.stopPropagation()} // evita abrir edição ao clicar aqui
+                    className="flex flex-col items-end gap-2 min-w-[70px]"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <p className="font-semibold text-right">R$ {tx.value.toFixed(2)}</p>
-
-                    <span className="text-gray-400 text-lg">{">"}</span>
 
                     <button
                       onClick={() => openDeleteModal(tx)}
@@ -250,7 +238,7 @@ export default function GroupPage() {
           })}
         </div>
 
-        {/* Botão flutuante */}
+        {/* BOTÃO FLUTUANTE */}
         <Link href={`/group/${groupId}/add-expense`}>
           <button className="fixed bottom-20 right-6 w-16 h-16 bg-[#5BC5A7] rounded-full flex items-center justify-center shadow-lg">
             <Plus className="text-white w-8 h-8" />
@@ -259,7 +247,7 @@ export default function GroupPage() {
 
       </main>
 
-      {/* Modal de deletar */}
+      {/* MODAL DELETAR */}
       {showDeleteModal && deleteTarget && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-xl w-80">
