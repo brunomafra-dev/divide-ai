@@ -1,6 +1,13 @@
 "use client";
 
-import { ArrowLeft, Plus, TrendingUp, TrendingDown, Settings, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  TrendingUp,
+  TrendingDown,
+  Settings,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -36,6 +43,7 @@ export default function GroupPage() {
   const [totalSpent, setTotalSpent] = useState(0);
   const [balance, setBalance] = useState(0);
 
+  // Modal de deletar
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -68,14 +76,14 @@ export default function GroupPage() {
   }, [groupId]);
 
   // ------------------------------------------------------------
-  // 2) Calcula total e saldos
+  // 2) Cálculo total gasto + saldo
   // ------------------------------------------------------------
   function calculate(group: GroupData, transactions: Transaction[]) {
     let total = 0;
     let myBalance = 0;
     const me = group.participants[0].id; // "Você"
 
-    transactions.forEach(tx => {
+    transactions.forEach((tx) => {
       total += tx.value;
 
       if (tx.payer_id === me) myBalance += tx.value;
@@ -89,7 +97,7 @@ export default function GroupPage() {
   }
 
   // ------------------------------------------------------------
-  // 3) Abrir modal de apagar gasto
+  // 3) Modal deletar gasto
   // ------------------------------------------------------------
   function openDeleteModal(tx: Transaction) {
     setDeleteTarget(tx);
@@ -101,8 +109,9 @@ export default function GroupPage() {
 
     await supabase.from("transactions").delete().eq("id", deleteTarget.id);
 
-    setTransactions(prev => prev.filter(t => t.id !== deleteTarget.id));
-    if (group) calculate(group, transactions.filter(t => t.id !== deleteTarget.id));
+    const updated = transactions.filter((t) => t.id !== deleteTarget.id);
+    setTransactions(updated);
+    if (group) calculate(group, updated);
 
     setShowDeleteModal(false);
   }
@@ -120,7 +129,6 @@ export default function GroupPage() {
 
   return (
     <div className="min-h-screen bg-[#F7F7F7] pb-24">
-
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
@@ -140,7 +148,6 @@ export default function GroupPage() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="grid grid-cols-2 text-center">
-
             <div>
               <p className="text-sm text-gray-500">Total gasto</p>
               <p className="text-2xl font-bold">R$ {totalSpent.toFixed(2)}</p>
@@ -149,9 +156,7 @@ export default function GroupPage() {
             <div>
               <p className="text-sm text-gray-500">Seu saldo</p>
 
-              {balance === 0 && (
-                <p className="text-2xl font-bold">R$ 0,00</p>
-              )}
+              {balance === 0 && <p className="text-2xl font-bold">R$ 0,00</p>}
 
               {balance > 0 && (
                 <p className="text-2xl font-bold text-[#5BC5A7] flex items-center justify-center gap-1">
@@ -165,14 +170,12 @@ export default function GroupPage() {
                 </p>
               )}
             </div>
-
           </div>
         </div>
       </div>
 
       {/* Lista de gastos */}
       <main className="max-w-4xl mx-auto px-4 py-6">
-
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Gastos</h2>
 
         {transactions.length === 0 && (
@@ -180,51 +183,65 @@ export default function GroupPage() {
         )}
 
         <div className="space-y-3">
-          {transactions.map(tx => {
+          {transactions.map((tx) => {
             const payer =
-              group.participants.find(p => p.id === tx.payer_id)?.name || "Alguém";
+              group.participants.find((p) => p.id === tx.payer_id)?.name ||
+              "Alguém";
 
             return (
-              <div key={tx.id} className="bg-white p-4 rounded-xl shadow-sm border">
-                <div className="flex justify-between items-start">
+              <Link
+                key={tx.id}
+                href={`/group/${groupId}/edit-expense/${tx.id}`}
+                className="block"
+              >
+                <div className="bg-white p-4 rounded-xl shadow-sm border hover:bg-gray-50 cursor-pointer">
+                  <div className="flex justify-between items-start">
+                    {/* ESQUERDA */}
+                    <div>
+                      <p className="font-medium text-gray-800">
+                        {tx.description}
+                      </p>
 
-                  {/* ESQUERDA */}
-                  <div>
-                    <p className="font-medium text-gray-800">{tx.description}</p>
+                      <p className="text-sm text-gray-500">
+                        Pago por <strong>{payer}</strong>
+                      </p>
 
-                    <p className="text-sm text-gray-500">
-                      Pago por <strong>{payer}</strong>
-                    </p>
+                      <div className="mt-2 text-sm text-gray-600">
+                        <p>Divisão:</p>
 
-                    <div className="mt-2 text-sm text-gray-600">
-                      <p>Divisão:</p>
+                        {Object.entries(tx.splits).map(([pid, v]) => {
+                          const name =
+                            group.participants.find((p) => p.id === pid)?.name ||
+                            pid;
 
-                      {Object.entries(tx.splits).map(([pid, v]) => {
-                        const name =
-                          group.participants.find(p => p.id === pid)?.name || pid;
+                          return (
+                            <p key={pid} className="ml-2">
+                              {name}: R$ {v.toFixed(2)}
+                            </p>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-                        return (
-                          <p key={pid} className="ml-2">
-                            {name}: R$ {v.toFixed(2)}
-                          </p>
-                        );
-                      })}
+                    {/* DIREITA */}
+                    <div className="flex flex-col items-end gap-2 min-w-[80px]">
+                      <p className="font-semibold text-right">
+                        R$ {tx.value.toFixed(2)}
+                      </p>
+
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault(); // evita abrir a edição ao clicar no lixo
+                          openDeleteModal(tx);
+                        }}
+                        className="p-1.5 rounded-full hover:bg-red-50"
+                      >
+                        <Trash2 className="w-5 h-5 text-red-500" />
+                      </button>
                     </div>
                   </div>
-
-                  {/* DIREITA: Valor + Lixinho alinhados */}
-                  <div className="flex flex-col items-end gap-2 min-w-[70px]">
-                    <p className="font-semibold text-right">R$ {tx.value.toFixed(2)}</p>
-
-                    <button
-                      onClick={() => openDeleteModal(tx)}
-                      className="p-1.5 rounded-full hover:bg-red-50"
-                    >
-                      <Trash2 className="w-5 h-5 text-red-500" />
-                    </button>
-                  </div>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
@@ -235,18 +252,19 @@ export default function GroupPage() {
             <Plus className="text-white w-8 h-8" />
           </button>
         </Link>
-
       </main>
 
-      {/* Modal de deletar */}
+      {/* Modal delete */}
       {showDeleteModal && deleteTarget && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-xl w-80">
             <h2 className="text-lg font-semibold text-gray-800">
               Apagar gasto?
             </h2>
+
             <p className="text-sm text-gray-500 mt-2">
-              Tem certeza que deseja remover "{deleteTarget.description}"?
+              Tem certeza que deseja remover "
+              <strong>{deleteTarget.description}</strong>"?
             </p>
 
             <div className="flex justify-end gap-3 mt-6">
@@ -267,7 +285,6 @@ export default function GroupPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
