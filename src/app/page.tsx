@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import {
-  Plus,
   User,
   TrendingUp,
   TrendingDown,
@@ -48,7 +47,7 @@ export default function Home() {
       setGroups(groupsData || []);
       setRecentActivity(txData || []);
 
-      // Calcular saldo total entre todos os grupos
+      // Calcular saldo total somado de todos os grupos
       let finalBalance = 0;
 
       if (groupsData?.length) {
@@ -85,18 +84,18 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#F7F7F7] pb-20">
 
-      {/* HEADER */}
+      {/* HEADER IGUAL À PRINT */}
       <header className="bg-gradient-to-r from-[#7CD7C2] to-[#5BC5A7] text-white py-6 px-6 shadow-md">
         <div className="max-w-4xl mx-auto flex justify-between items-start">
 
           {/* Avatar + Nome */}
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-lg font-bold">
-              M
+              D
             </div>
 
             <div>
-              <p className="text-sm opacity-90">Bem-vindo,</p>
+              <p className="text-sm opacity-90">Bom dia,</p>
               <p className="text-xl font-semibold">Mafra</p>
             </div>
           </div>
@@ -109,29 +108,42 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* SALDO CENTRALIZADO */}
-        <div className="mt-6 text-center">
-          <p className="text-sm opacity-90">Saldo total</p>
+        {/* CARD DO SALDO - CENTRALIZADO */}
+        <div className="flex justify-center mt-6">
+          <div className="bg-white text-gray-800 rounded-xl shadow-md px-6 py-4 w-fit">
 
-          {totalBalance === 0 ? (
-            <p className="text-3xl font-bold">R$ 0,00</p>
-          ) : totalBalance > 0 ? (
-            <p className="text-3xl font-bold flex justify-center items-center gap-2">
-              <TrendingUp className="w-6 h-6" />
-              R$ {totalBalance.toFixed(2)}
-            </p>
-          ) : (
-            <p className="text-3xl font-bold flex justify-center items-center gap-2">
-              <TrendingDown className="w-6 h-6" />
-              R$ {Math.abs(totalBalance).toFixed(2)}
-            </p>
-          )}
+            <p className="text-sm text-gray-500">Saldo total</p>
+
+            {totalBalance === 0 ? (
+              <div className="flex items-baseline gap-2">
+                <p className="text-3xl font-bold">R$ 0,00</p>
+                <span className="text-sm text-gray-400">zerado</span>
+              </div>
+            ) : totalBalance > 0 ? (
+              <div className="flex items-baseline gap-2 text-[#5BC5A7]">
+                <TrendingUp className="w-6 h-6" />
+                <p className="text-3xl font-bold">
+                  R$ {totalBalance.toFixed(2)}
+                </p>
+                <span className="text-sm">te devem</span>
+              </div>
+            ) : (
+              <div className="flex items-baseline gap-2 text-[#FF6B6B]">
+                <TrendingDown className="w-6 h-6" />
+                <p className="text-3xl font-bold">
+                  R$ {Math.abs(totalBalance).toFixed(2)}
+                </p>
+                <span className="text-sm">você deve</span>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
       {/* CONTEÚDO */}
       <main className="max-w-4xl mx-auto px-6 py-8 space-y-10">
-        {/* Grupos Recentes */}
+
+        {/* GRUPOS RECENTES */}
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold text-gray-800">Grupos recentes</h2>
           <Link href="/groups" className="text-sm text-[#5BC5A7] font-medium">
@@ -139,40 +151,45 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="space-y-3">
+        <div className="flex gap-4">
           {groups.slice(0, 3).map((group) => (
             <Link
               key={group.id}
               href={`/group/${group.id}`}
-              className="block bg-white p-4 rounded-xl shadow-sm border hover:shadow-md transition-all"
+              className="block bg-white p-4 rounded-xl shadow-sm border hover:shadow-md transition-all w-64"
             >
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="font-medium text-gray-800">{group.name}</p>
-                  <p className="text-sm text-gray-500">
-                    {group.participants?.length || 0} pessoas
-                  </p>
-                </div>
+              <p className="font-medium text-gray-800">{group.name}</p>
+              <p className="text-sm text-gray-500">{group.participants.length} pessoas</p>
 
-                <div className="text-right">
-                  <p className="text-sm text-gray-500">saldo</p>
-                  <p className="text-lg font-semibold">
-                    R$ {(group.balance ?? 0).toFixed(2)}
-                  </p>
-                </div>
+              <p className="mt-2 text-sm text-gray-400">R$ 0,00</p>
+              <p className="text-sm text-gray-400">zerado</p>
+
+              {/* bolinhas dos participantes */}
+              <div className="flex gap-2 mt-3">
+                {group.participants.map((p: any) => (
+                  <div
+                    key={p.id}
+                    className="w-8 h-8 bg-[#5BC5A7] text-white rounded-full flex items-center justify-center"
+                  >
+                    {p.name.charAt(0).toUpperCase()}
+                  </div>
+                ))}
               </div>
             </Link>
           ))}
         </div>
 
-        {/* Atividades Recentes */}
-        <h2 className="text-lg font-semibold text-gray-800">Atividades recentes</h2>
+        {/* ATIVIDADES RECENTES */}
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg font-semibold text-gray-800">Atividades recentes</h2>
+          <span className="text-sm text-gray-500 cursor-pointer">Filtrar</span>
+        </div>
 
         <div className="space-y-3">
           {recentActivity.map((tx) => (
             <div
               key={tx.id}
-              className="bg-white p-4 rounded-xl shadow-sm border flex gap-4"
+              className="bg-white p-4 rounded-xl shadow-sm border flex gap-4 items-center"
             >
               <div className="w-10 h-10 bg-[#5BC5A7]/20 text-[#5BC5A7] rounded-full flex items-center justify-center">
                 <Receipt className="w-5 h-5" />
@@ -190,13 +207,6 @@ export default function Home() {
           ))}
         </div>
       </main>
-
-      {/* BOTÃO + */}
-      <Link href="/group/new">
-        <button className="fixed bottom-6 right-6 w-16 h-16 bg-[#5BC5A7] text-white text-3xl rounded-full shadow-lg flex items-center justify-center hover:scale-110 hover:bg-[#4AB396] transition-all">
-          +
-        </button>
-      </Link>
     </div>
   );
 }
