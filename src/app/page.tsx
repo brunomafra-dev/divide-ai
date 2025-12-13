@@ -1,217 +1,194 @@
-"use client";
+'use client'
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { supabase } from "@/lib/supabase";
-import { User, TrendingUp, TrendingDown } from "lucide-react";
-
-interface Participant {
-  id: string;
-  name: string;
-}
+import { User, TrendingUp, TrendingDown } from 'lucide-react'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
 interface Group {
-  id: string;
-  name: string;
-  participants: Participant[];
-  totalSpent?: number;
-  balance?: number;
+  id: string
+  name: string
+  balance: number
 }
 
-export default function HomePage() {
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [totalBalance, setTotalBalance] = useState(0);
-  const [loading, setLoading] = useState(true);
+interface Activity {
+  id: string
+  value: number
+  payer_id: string
+  created_at: string
+  groups: {
+    name: string
+  } | null
+}
 
-  // ------------------------------------------------------------
-  // Load groups + calcular saldo real de cada grupo
-  // ------------------------------------------------------------
+export default function Home() {
+  const [groups, setGroups] = useState<Group[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [totalBalance, setTotalBalance] = useState(0)
+  const [loading, setLoading] = useState(true)
+
   useEffect(() => {
-    async function load() {
-      const { data: groupsData } = await supabase.from("groups").select("*");
+    async function loadData() {
+      // --------- GRUPOS ----------
+      const { data: groupsData } = await supabase
+        .from('groups')
+        .select('id, name, balance')
 
-      const updatedGroups: Group[] = [];
+      const groupsList = groupsData || []
+      setGroups(groupsList)
 
-      for (const group of groupsData ?? []) {
-        const { data: txList } = await supabase
-          .from("transactions")
-          .select("*")
-          .eq("group_id", group.id);
+      const total = groupsList.reduce(
+        (acc, g) => acc + (g.balance || 0),
+        0
+      )
+      setTotalBalance(total)
 
-        const me = group.participants?.[0]?.id;
-        let totalSpent = 0;
-        let balance = 0;
+      // --------- ATIVIDADES ----------
+      const { data: activitiesData } = await supabase
+        .from('transactions')
+        .select(`
+          id,
+          value,
+          payer_id,
+          created_at,
+          groups (
+            name
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(5)
 
-        txList?.forEach((tx) => {
-          totalSpent += tx.value;
-
-          if (tx.payer_id === me) balance += tx.value;
-
-          const myShare = tx.splits?.[me] ?? 0;
-          balance -= myShare;
-        });
-
-        updatedGroups.push({
-          ...group,
-          totalSpent,
-          balance,
-        });
-      }
-
-      setGroups(updatedGroups);
-
-      // saldo geral = soma dos saldos individuais
-      const total = updatedGroups.reduce((acc, g) => acc + (g.balance ?? 0), 0);
-      setTotalBalance(total);
-
-      setLoading(false);
+      setActivities(activitiesData || [])
+      setLoading(false)
     }
 
-    load();
-  }, []);
+    loadData()
+  }, [])
 
   return (
-    <div className="min-h-screen bg-[#F5F7F8]">
+    <div className="min-h-screen bg-[#F7F7F7]">
 
-      {/* ------------------------------------------------------ */}
-      {/* HEADER + SALDO GERAL */}
-      {/* ------------------------------------------------------ */}
-      <div className="w-full bg-gradient-to-r from-[#5BC5A7] to-[#4AB396] text-white pb-8 pt-6 shadow-lg">
-        <div className="max-w-4xl mx-auto px-6">
+      {/* HEADER */}
+      <header className="bg-white shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+          <h1 className="text-xl font-semibold text-gray-800">
+            Bem-vindo, Mafra
+          </h1>
 
-          {/* Top bar */}
-          <div className="flex justify-between items-center mb-4">
-            {/* Avatar */}
-            <div className="w-10 h-10 rounded-full bg-white/25 flex items-center justify-center">
-              <span className="font-semibold">M</span>
+          {/* Avatar */}
+          <Link href="/profile">
+            <div className="w-10 h-10 bg-[#5BC5A7] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#4AB396] transition-colors">
+              <User className="w-6 h-6 text-white" />
             </div>
-
-            {/* Botão ações */}
-            <Link
-              href="/profile"
-              className="px-4 py-2 bg-white/20 rounded-lg font-medium backdrop-blur-sm hover:bg-white/30 transition"
-            >
-              Ações
-            </Link>
-          </div>
-
-          {/* Saudação */}
-          <h2 className="text-lg font-medium opacity-90">Bem-vindo, Mafra</h2>
-
-          {/* SALDO CENTRALIZADO */}
-          <div className="text-center mt-6">
-            <p className="text-sm opacity-80">Saldo total</p>
-
-            {totalBalance === 0 ? (
-              <p className="text-4xl font-bold mt-1">R$ 0,00</p>
-            ) : totalBalance > 0 ? (
-              <p className="text-4xl font-bold mt-1 text-green-100">
-                R$ {totalBalance.toFixed(2)}
-              </p>
-            ) : (
-              <p className="text-4xl font-bold mt-1 text-red-200">
-                R$ {Math.abs(totalBalance).toFixed(2)}
-              </p>
-            )}
-
-            <p className="opacity-80 text-sm mt-1">
-              {totalBalance === 0
-                ? "zerado"
-                : totalBalance > 0
-                ? "te devem"
-                : "você deve"}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ------------------------------------------------------ */}
-      {/* GRUPOS RECENTES */}
-      {/* ------------------------------------------------------ */}
-      <div className="max-w-4xl mx-auto px-6 mt-10">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-semibold text-gray-800">Grupos recentes</h3>
-          <Link href="/groups" className="text-sm text-gray-500 hover:underline">
-            Ver todos
           </Link>
         </div>
+      </header>
 
-        {loading ? (
-          <p className="text-gray-500">Carregando...</p>
-        ) : groups.length === 0 ? (
-          <p className="text-gray-500">Nenhum grupo criado ainda.</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {groups.map((group) => (
-              <Link
-                key={group.id}
-                href={`/group/${group.id}`}
-                className="bg-white p-4 rounded-xl shadow-sm border hover:shadow-md transition-all"
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-semibold text-gray-800">{group.name}</p>
-                    <p className="text-sm text-gray-500">
-                      {group.participants?.length || 0} pessoas
-                    </p>
-                  </div>
+      {/* SALDO GERAL */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-4xl mx-auto px-4 py-8 text-center">
+          <p className="text-sm text-gray-600 mb-2">Saldo geral</p>
 
-                  {/* SALDO DO GRUPO */}
-                  <div className="text-right">
-                    {group.balance === 0 ? (
-                      <>
-                        <p className="text-sm text-gray-500">
-                          R$ {group.totalSpent?.toFixed(2)}
-                        </p>
-                        <p className="text-xs text-gray-400">zerado</p>
-                      </>
-                    ) : group.balance! > 0 ? (
-                      <div>
-                        <p className="text-sm font-semibold text-[#5BC5A7]">
-                          R$ {group.balance?.toFixed(2)}
-                        </p>
-                        <p className="text-xs text-[#5BC5A7]">te devem</p>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="text-sm font-semibold text-[#FF6B6B]">
-                          R$ {Math.abs(group.balance!).toFixed(2)}
-                        </p>
-                        <p className="text-xs text-[#FF6B6B]">você deve</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+          {totalBalance === 0 ? (
+            <p className="text-3xl font-bold text-gray-800">R$ 0,00</p>
+          ) : totalBalance > 0 ? (
+            <div className="flex items-center justify-center gap-2">
+              <TrendingUp className="w-6 h-6 text-[#5BC5A7]" />
+              <p className="text-3xl font-bold text-[#5BC5A7]">
+                R$ {totalBalance.toFixed(2)}
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-2">
+              <TrendingDown className="w-6 h-6 text-[#FF6B6B]" />
+              <p className="text-3xl font-bold text-[#FF6B6B]">
+                R$ {Math.abs(totalBalance).toFixed(2)}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
 
-                {/* BOLINHAS DE PARTICIPANTES */}
-                <div className="flex mt-3 gap-1">
-                  {group.participants?.slice(0, 3).map((p) => (
-                    <div
-                      key={p.id}
-                      className="w-7 h-7 rounded-full bg-[#5BC5A7] text-white flex items-center justify-center text-xs font-semibold"
-                    >
-                      {p.name.charAt(0).toUpperCase()}
+      {/* CONTEÚDO */}
+      <main className="max-w-4xl mx-auto px-4 py-6 space-y-10">
+
+        {/* GRUPOS RECENTES */}
+        <section>
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Grupos recentes
+          </h2>
+
+          {loading ? (
+            <p className="text-gray-500">Carregando...</p>
+          ) : groups.length === 0 ? (
+            <p className="text-gray-500">Nenhum grupo ainda.</p>
+          ) : (
+            <div className="space-y-3">
+              {groups.map(group => (
+                <Link key={group.id} href={`/group/${group.id}`}>
+                  <div className="bg-white p-4 rounded-xl shadow-sm border hover:shadow-md transition-all">
+                    <div className="flex justify-between items-center">
+                      <p className="font-medium text-gray-800">
+                        {group.name}
+                      </p>
+
+                      {group.balance === 0 ? (
+                        <span className="text-sm text-gray-500">zerado</span>
+                      ) : group.balance > 0 ? (
+                        <span className="text-sm font-semibold text-[#5BC5A7]">
+                          R$ {group.balance.toFixed(2)}
+                        </span>
+                      ) : (
+                        <span className="text-sm font-semibold text-[#FF6B6B]">
+                          R$ {Math.abs(group.balance).toFixed(2)}
+                        </span>
+                      )}
                     </div>
-                  ))}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ATIVIDADES RECENTES */}
+        <section>
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Atividades recentes
+          </h2>
+
+          {activities.length === 0 ? (
+            <p className="text-gray-500">Nenhuma atividade ainda.</p>
+          ) : (
+            <div className="space-y-3">
+              {activities.map(act => (
+                <div
+                  key={act.id}
+                  className="bg-white p-4 rounded-xl shadow-sm border"
+                >
+                  <p className="text-sm text-gray-700">
+                    <strong>
+                      {act.payer_id === 'self' ? 'Você' : 'Alguém'}
+                    </strong>{' '}
+                    pagou{' '}
+                    <strong>R$ {act.value.toFixed(2)}</strong>{' '}
+                    em{' '}
+                    <strong>
+                      {act.groups?.name || 'Grupo'}
+                    </strong>
+                  </p>
+
+                  <p className="text-xs text-gray-400 mt-1">
+                    {new Date(act.created_at).toLocaleString('pt-BR')}
+                  </p>
                 </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </section>
 
-      {/* ------------------------------------------------------ */}
-      {/* ATIVIDADES RECENTES (placeholder até criarmos) */}
-      {/* ------------------------------------------------------ */}
-      <div className="max-w-4xl mx-auto px-6 mt-10 mb-20">
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">
-          Atividades recentes
-        </h3>
-
-        <p className="text-gray-500 text-sm">
-          Em breve vamos puxar isso automaticamente de todas as transações 🔥
-        </p>
-      </div>
+      </main>
     </div>
-  );
+  )
 }
+
