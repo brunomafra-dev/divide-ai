@@ -4,7 +4,7 @@ import { User } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { getCurrentUser } from '@/lib/auth'
+import { useAuth } from '@/context/AuthContext'
 
 interface Participant {
   id: string
@@ -28,19 +28,17 @@ interface Transaction {
 }
 
 export default function Home() {
+  const { user, loading: authLoading } = useAuth()
+
   const [groups, setGroups] = useState<Group[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [myId, setMyId] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!user) return
+
     async function load() {
-      const user = await getCurrentUser()
-      if (!user) return
-
-      setMyId(user.id)
-
       const { data: g } = await supabase.from('groups').select('*')
       const { data: t } = await supabase
         .from('transactions')
@@ -55,7 +53,7 @@ export default function Home() {
     }
 
     load()
-  }, [])
+  }, [user])
 
   function calculateBalances(
     groups: Group[],
@@ -80,7 +78,7 @@ export default function Home() {
     setTotalBalance(global)
   }
 
-  if (loading || !myId) {
+  if (authLoading || loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         Carregando...
@@ -98,11 +96,13 @@ export default function Home() {
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center font-bold">
-                M
+                {user.email?.charAt(0).toUpperCase()}
               </div>
               <div>
                 <p className="text-sm opacity-90">Bem-vindo,</p>
-                <p className="text-lg font-semibold">Mafra</p>
+                <p className="text-lg font-semibold">
+                  {user.email?.split('@')[0]}
+                </p>
               </div>
             </div>
 
@@ -234,7 +234,7 @@ export default function Home() {
             {transactions.map(tx => {
               const group = groups.find(g => g.id === tx.group_id)
               const payer =
-                tx.payer_id === myId
+                tx.payer_id === user.id
                   ? 'Você'
                   : group?.participants.find(p => p.id === tx.payer_id)?.name ||
                     'Alguém'
@@ -260,4 +260,3 @@ export default function Home() {
     </div>
   )
 }
-
