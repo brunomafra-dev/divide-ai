@@ -1,6 +1,6 @@
 'use client'
 
-import { TrendingUp, TrendingDown, User } from 'lucide-react'
+import { User } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -71,7 +71,11 @@ export default function Home() {
   }
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Carregando...</div>
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Carregando...
+      </div>
+    )
   }
 
   return (
@@ -79,12 +83,12 @@ export default function Home() {
 
       {/* HEADER */}
       <div className="bg-gradient-to-r from-[#5BC5A7] to-[#6FD1BE]">
-        <div className="max-w-4xl mx-auto px-6 py-6 relative text-white">
+        <div className="max-w-4xl mx-auto px-6 py-6 text-white">
 
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center">
-                <span className="font-bold">M</span>
+              <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center font-bold">
+                M
               </div>
               <div>
                 <p className="text-sm opacity-90">Bem-vindo,</p>
@@ -92,7 +96,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* AVATAR PERFIL */}
             <Link href="/profile">
               <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center">
                 <User className="w-5 h-5" />
@@ -113,7 +116,9 @@ export default function Home() {
 
             {totalBalance > 0 && (
               <>
-                <p className="text-3xl font-bold">R$ {totalBalance.toFixed(2)}</p>
+                <p className="text-3xl font-bold">
+                  R$ {totalBalance.toFixed(2)}
+                </p>
                 <p className="text-sm opacity-90">te devem</p>
               </>
             )}
@@ -137,7 +142,9 @@ export default function Home() {
         <section>
           <div className="flex justify-between mb-3">
             <h2 className="font-semibold text-gray-800">Grupos recentes</h2>
-            <Link href="/groups" className="text-sm text-gray-500">Ver todos</Link>
+            <Link href="/groups" className="text-sm text-gray-500">
+              Ver todos
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -147,23 +154,47 @@ export default function Home() {
               return (
                 <Link key={group.id} href={`/group/${group.id}`}>
                   <div className="bg-white rounded-xl p-4 shadow-sm border hover:shadow-md transition">
+
                     <div className="flex justify-between">
                       <div>
                         <p className="font-medium">{group.name}</p>
                         <p className="text-sm text-gray-500">
                           {group.participants.length} pessoas
                         </p>
+
+                        {/* AVATARES DOS PARTICIPANTES */}
+                        <div className="flex -space-x-2 mt-3">
+                          {group.participants.slice(0, 4).map(p => (
+                            <div
+                              key={p.id}
+                              title={p.name}
+                              className="w-8 h-8 rounded-full bg-[#5BC5A7] text-white flex items-center justify-center text-xs font-semibold border-2 border-white"
+                            >
+                              {p.name.charAt(0).toUpperCase()}
+                            </div>
+                          ))}
+
+                          {group.participants.length > 4 && (
+                            <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-xs font-semibold border-2 border-white">
+                              +{group.participants.length - 4}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="text-right">
                         {balance > 0 && (
                           <p className="text-sm text-[#5BC5A7]">
-                            R$ {balance.toFixed(2)}<br />te devem
+                            R$ {balance.toFixed(2)}
+                            <br />
+                            te devem
                           </p>
                         )}
                         {balance < 0 && (
                           <p className="text-sm text-[#FF6B6B]">
-                            R$ {Math.abs(balance).toFixed(2)}<br />você deve
+                            R$ {Math.abs(balance).toFixed(2)}
+                            <br />
+                            você deve
                           </p>
                         )}
                         {balance === 0 && (
@@ -171,6 +202,7 @@ export default function Home() {
                         )}
                       </div>
                     </div>
+
                   </div>
                 </Link>
               )
@@ -178,24 +210,33 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ATIVIDADES REAIS */}
+        {/* ATIVIDADES */}
         <section>
-          <h2 className="font-semibold text-gray-800 mb-3">Atividades recentes</h2>
+          <h2 className="font-semibold text-gray-800 mb-3">
+            Atividades recentes
+          </h2>
 
           <div className="space-y-3">
             {transactions.length === 0 && (
-              <p className="text-sm text-gray-500">Nenhuma atividade ainda.</p>
+              <p className="text-sm text-gray-500">
+                Nenhuma atividade ainda.
+              </p>
             )}
 
             {transactions.map(tx => {
               const group = groups.find(g => g.id === tx.group_id)
               const me = group?.participants?.[0]?.id
               const payer =
-                tx.payer_id === me ? 'Você' :
-                group?.participants.find(p => p.id === tx.payer_id)?.name || 'Alguém'
+                tx.payer_id === me
+                  ? 'Você'
+                  : group?.participants.find(p => p.id === tx.payer_id)?.name ||
+                    'Alguém'
 
               return (
-                <div key={tx.id} className="bg-white p-4 rounded-xl shadow-sm border">
+                <div
+                  key={tx.id}
+                  className="bg-white p-4 rounded-xl shadow-sm border"
+                >
                   <p className="font-medium text-gray-800">
                     {payer} pagou R$ {tx.value.toFixed(2)} em {group?.name}
                   </p>
