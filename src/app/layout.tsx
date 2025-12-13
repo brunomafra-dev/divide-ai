@@ -8,6 +8,7 @@ import "../lib/fonts";
 // ADICIONADO AGORA:
 import Navbar from "@/components/Navbar";
 import ActionModalProvider from "@/components/ActionModalProvider";
+import { AuthProvider } from "@/context/AuthContext"; // 👈 AQUI
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,8 +21,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Criado com a Lasy",
-  description: "Projeto criado com Lasy AI",
+  title: "Criado Pelo Brunola",
+  description: "Projeto criado com Brunola",
 };
 
 export default function RootLayout({
@@ -38,15 +39,19 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#F7F7F7]`}
       >
-        {/* Provider do modal */}
-        <ActionModalProvider>
-          {/* Conteúdo da página */}
-          <div className="pb-32">{children}</div>
+        {/* 🔐 AUTH GLOBAL */}
+        <AuthProvider>
+          {/* Provider do modal */}
+          <ActionModalProvider>
+            {/* Conteúdo da página */}
+            <div className="pb-32">{children}</div>
 
-          {/* Navbar fixa */}
-          <Navbar />
-        </ActionModalProvider>
+            {/* Navbar fixa */}
+            <Navbar />
+          </ActionModalProvider>
+        </AuthProvider>
       </body>
     </html>
   );
 }
+
