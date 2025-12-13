@@ -4,6 +4,7 @@ import { User } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getCurrentUser } from '@/lib/auth'
 
 interface Participant {
   id: string
@@ -31,9 +32,15 @@ export default function Home() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [myId, setMyId] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
+      const user = await getCurrentUser()
+      if (!user) return
+
+      setMyId(user.id)
+
       const { data: g } = await supabase.from('groups').select('*')
       const { data: t } = await supabase
         .from('transactions')
@@ -43,16 +50,19 @@ export default function Home() {
 
       setGroups(g || [])
       setTransactions(t || [])
-      calculateBalances(g || [], t || [])
+      calculateBalances(g || [], t || [], user.id)
       setLoading(false)
     }
 
     load()
   }, [])
 
-  function calculateBalances(groups: Group[], transactions: Transaction[]) {
+  function calculateBalances(
+    groups: Group[],
+    transactions: Transaction[],
+    me: string
+  ) {
     let global = 0
-    const me = groups[0]?.participants?.[0]?.id
 
     groups.forEach(group => {
       const groupTx = transactions.filter(tx => tx.group_id === group.id)
@@ -70,7 +80,7 @@ export default function Home() {
     setTotalBalance(global)
   }
 
-  if (loading) {
+  if (loading || !myId) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         Carregando...
@@ -154,7 +164,6 @@ export default function Home() {
               return (
                 <Link key={group.id} href={`/group/${group.id}`}>
                   <div className="bg-white rounded-xl p-4 shadow-sm border hover:shadow-md transition">
-
                     <div className="flex justify-between">
                       <div>
                         <p className="font-medium">{group.name}</p>
@@ -162,7 +171,7 @@ export default function Home() {
                           {group.participants.length} pessoas
                         </p>
 
-                        {/* AVATARES DOS PARTICIPANTES */}
+                        {/* AVATARES */}
                         <div className="flex -space-x-2 mt-3">
                           {group.participants.slice(0, 4).map(p => (
                             <div
@@ -202,7 +211,6 @@ export default function Home() {
                         )}
                       </div>
                     </div>
-
                   </div>
                 </Link>
               )
@@ -225,9 +233,8 @@ export default function Home() {
 
             {transactions.map(tx => {
               const group = groups.find(g => g.id === tx.group_id)
-              const me = group?.participants?.[0]?.id
               const payer =
-                tx.payer_id === me
+                tx.payer_id === myId
                   ? 'Você'
                   : group?.participants.find(p => p.id === tx.payer_id)?.name ||
                     'Alguém'
@@ -253,3 +260,4 @@ export default function Home() {
     </div>
   )
 }
+
