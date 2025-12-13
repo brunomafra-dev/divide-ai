@@ -21,25 +21,28 @@ interface Transaction {
   group_id: string
   value: number
   payer_id: string
-  splits: Record<string, number>
   description: string
+  splits: Record<string, number>
+  created_at: string
 }
 
 export default function Home() {
   const [groups, setGroups] = useState<Group[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(true)
-
   const [totalBalance, setTotalBalance] = useState(0)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       const { data: g } = await supabase.from('groups').select('*')
-      const { data: t } = await supabase.from('transactions').select('*')
+      const { data: t } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5)
 
       setGroups(g || [])
       setTransactions(t || [])
-
       calculateBalances(g || [], t || [])
       setLoading(false)
     }
@@ -48,144 +51,163 @@ export default function Home() {
   }, [])
 
   function calculateBalances(groups: Group[], transactions: Transaction[]) {
-    let globalBalance = 0
+    let global = 0
     const me = groups[0]?.participants?.[0]?.id
 
     groups.forEach(group => {
-      const groupTx = transactions.filter(t => t.group_id === group.id)
-      let groupBalance = 0
+      const groupTx = transactions.filter(tx => tx.group_id === group.id)
+      let balance = 0
 
       groupTx.forEach(tx => {
-        if (tx.payer_id === me) {
-          groupBalance += tx.value
-        }
-
-        const myShare = tx.splits?.[me] ?? 0
-        groupBalance -= myShare
+        if (tx.payer_id === me) balance += tx.value
+        balance -= tx.splits?.[me] ?? 0
       })
 
-      ;(group as any).calculatedBalance = groupBalance
-      globalBalance += groupBalance
+      ;(group as any).calculatedBalance = balance
+      global += balance
     })
 
-    setTotalBalance(globalBalance)
+    setTotalBalance(global)
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
-        Carregando...
-      </div>
-    )
+    return <div className="min-h-screen flex items-center justify-center">Carregando...</div>
   }
 
   return (
     <div className="min-h-screen bg-[#F7F7F7]">
 
       {/* HEADER */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-xl font-bold text-[#5BC5A7]">
-            Bem vindo, Mafra
-          </h1>
+      <div className="bg-gradient-to-r from-[#5BC5A7] to-[#6FD1BE]">
+        <div className="max-w-4xl mx-auto px-6 py-6 relative text-white">
 
-          <Link href="/profile">
-            <div className="w-10 h-10 bg-[#5BC5A7] rounded-full flex items-center justify-center">
-              <User className="text-white w-5 h-5" />
+          <div className="flex justify-between items-start">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center">
+                <span className="font-bold">M</span>
+              </div>
+              <div>
+                <p className="text-sm opacity-90">Bem-vindo,</p>
+                <p className="text-lg font-semibold">Mafra</p>
+              </div>
             </div>
-          </Link>
-        </div>
-      </header>
 
-      {/* SALDO GERAL */}
-      <div className="bg-white border-b">
-        <div className="max-w-4xl mx-auto px-4 py-6 text-center">
-          <p className="text-sm text-gray-500 mb-1">Saldo geral</p>
+            {/* AVATAR PERFIL */}
+            <Link href="/profile">
+              <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center">
+                <User className="w-5 h-5" />
+              </div>
+            </Link>
+          </div>
 
-          {totalBalance === 0 && (
-            <p className="text-3xl font-bold text-gray-800">R$ 0,00</p>
-          )}
+          {/* SALDO CENTRAL */}
+          <div className="mt-8 text-center">
+            <p className="text-sm opacity-90">Saldo total</p>
 
-          {totalBalance > 0 && (
-            <div className="flex items-center justify-center gap-2">
-              <TrendingUp className="text-[#5BC5A7]" />
-              <p className="text-3xl font-bold text-[#5BC5A7]">
-                R$ {totalBalance.toFixed(2)}
-              </p>
-            </div>
-          )}
+            {totalBalance === 0 && (
+              <>
+                <p className="text-3xl font-bold">R$ 0,00</p>
+                <p className="text-sm opacity-90">zerado</p>
+              </>
+            )}
 
-          {totalBalance < 0 && (
-            <div className="flex items-center justify-center gap-2">
-              <TrendingDown className="text-[#FF6B6B]" />
-              <p className="text-3xl font-bold text-[#FF6B6B]">
-                R$ {Math.abs(totalBalance).toFixed(2)}
-              </p>
-            </div>
-          )}
+            {totalBalance > 0 && (
+              <>
+                <p className="text-3xl font-bold">R$ {totalBalance.toFixed(2)}</p>
+                <p className="text-sm opacity-90">te devem</p>
+              </>
+            )}
+
+            {totalBalance < 0 && (
+              <>
+                <p className="text-3xl font-bold">
+                  R$ {Math.abs(totalBalance).toFixed(2)}
+                </p>
+                <p className="text-sm opacity-90">você deve</p>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* GRUPOS RECENTES */}
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">
-          Grupos recentes
-        </h2>
+      {/* CONTEÚDO */}
+      <main className="max-w-4xl mx-auto px-6 py-6 space-y-8">
 
-        {groups.length === 0 && (
-          <p className="text-gray-500">Nenhum grupo criado ainda.</p>
-        )}
+        {/* GRUPOS */}
+        <section>
+          <div className="flex justify-between mb-3">
+            <h2 className="font-semibold text-gray-800">Grupos recentes</h2>
+            <Link href="/groups" className="text-sm text-gray-500">Ver todos</Link>
+          </div>
 
-        <div className="space-y-3">
-          {groups.map(group => {
-            const balance = (group as any).calculatedBalance ?? 0
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {groups.map(group => {
+              const balance = (group as any).calculatedBalance ?? 0
 
-            return (
-              <Link key={group.id} href={`/group/${group.id}`}>
-                <div className="bg-white rounded-xl p-4 shadow-sm border hover:shadow-md transition-all">
-                  <div className="flex justify-between items-center">
+              return (
+                <Link key={group.id} href={`/group/${group.id}`}>
+                  <div className="bg-white rounded-xl p-4 shadow-sm border hover:shadow-md transition">
+                    <div className="flex justify-between">
+                      <div>
+                        <p className="font-medium">{group.name}</p>
+                        <p className="text-sm text-gray-500">
+                          {group.participants.length} pessoas
+                        </p>
+                      </div>
 
-                    <div>
-                      <p className="text-lg font-medium text-gray-800">
-                        {group.name}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {group.participants?.length || 0} pessoas
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-                      {balance === 0 && (
-                        <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                          zerado
-                        </span>
-                      )}
-
-                      {balance > 0 && (
-                        <>
-                          <p className="text-xs text-gray-500">te devem</p>
-                          <p className="text-lg font-semibold text-[#5BC5A7]">
-                            R$ {balance.toFixed(2)}
+                      <div className="text-right">
+                        {balance > 0 && (
+                          <p className="text-sm text-[#5BC5A7]">
+                            R$ {balance.toFixed(2)}<br />te devem
                           </p>
-                        </>
-                      )}
-
-                      {balance < 0 && (
-                        <>
-                          <p className="text-xs text-gray-500">você deve</p>
-                          <p className="text-lg font-semibold text-[#FF6B6B]">
-                            R$ {Math.abs(balance).toFixed(2)}
+                        )}
+                        {balance < 0 && (
+                          <p className="text-sm text-[#FF6B6B]">
+                            R$ {Math.abs(balance).toFixed(2)}<br />você deve
                           </p>
-                        </>
-                      )}
+                        )}
+                        {balance === 0 && (
+                          <p className="text-sm text-gray-500">zerado</p>
+                        )}
+                      </div>
                     </div>
-
                   </div>
+                </Link>
+              )
+            })}
+          </div>
+        </section>
+
+        {/* ATIVIDADES REAIS */}
+        <section>
+          <h2 className="font-semibold text-gray-800 mb-3">Atividades recentes</h2>
+
+          <div className="space-y-3">
+            {transactions.length === 0 && (
+              <p className="text-sm text-gray-500">Nenhuma atividade ainda.</p>
+            )}
+
+            {transactions.map(tx => {
+              const group = groups.find(g => g.id === tx.group_id)
+              const me = group?.participants?.[0]?.id
+              const payer =
+                tx.payer_id === me ? 'Você' :
+                group?.participants.find(p => p.id === tx.payer_id)?.name || 'Alguém'
+
+              return (
+                <div key={tx.id} className="bg-white p-4 rounded-xl shadow-sm border">
+                  <p className="font-medium text-gray-800">
+                    {payer} pagou R$ {tx.value.toFixed(2)} em {group?.name}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {new Date(tx.created_at).toLocaleString('pt-BR')}
+                  </p>
                 </div>
-              </Link>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        </section>
+
       </main>
     </div>
   )
