@@ -15,6 +15,7 @@ interface Group {
   id: string
   name: string
   participants: Participant[]
+  calculatedBalance?: number
 }
 
 interface Transaction {
@@ -28,17 +29,19 @@ interface Transaction {
 }
 
 export default function Home() {
-  const { user, loading: authLoading } = useAuth()
-
+  const [user, setUser] = useState<any>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!user) return
-
     async function load() {
+      const currentUser = await getCurrentUser()
+      if (!currentUser) return
+
+      setUser(currentUser)
+
       const { data: g } = await supabase.from('groups').select('*')
       const { data: t } = await supabase
         .from('transactions')
@@ -46,14 +49,19 @@ export default function Home() {
         .order('created_at', { ascending: false })
         .limit(5)
 
-      setGroups(g || [])
+      const groupsWithBalance = calculateBalances(
+        g || [],
+        t || [],
+        currentUser.id
+      )
+
+      setGroups(groupsWithBalance)
       setTransactions(t || [])
-      calculateBalances(g || [], t || [], user.id)
       setLoading(false)
     }
 
     load()
-  }, [user])
+  }, [])
 
   function calculateBalances(
     groups: Group[],
@@ -62,7 +70,7 @@ export default function Home() {
   ) {
     let global = 0
 
-    groups.forEach(group => {
+    const updated = groups.map(group => {
       const groupTx = transactions.filter(tx => tx.group_id === group.id)
       let balance = 0
 
@@ -71,14 +79,15 @@ export default function Home() {
         balance -= tx.splits?.[me] ?? 0
       })
 
-      ;(group as any).calculatedBalance = balance
       global += balance
+      return { ...group, calculatedBalance: balance }
     })
 
     setTotalBalance(global)
+    return updated
   }
 
-  if (authLoading || loading || !user) {
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         Carregando...
@@ -113,7 +122,7 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* SALDO CENTRAL */}
+          {/* SALDO */}
           <div className="mt-8 text-center">
             <p className="text-sm opacity-90">Saldo total</p>
 
@@ -159,7 +168,7 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {groups.map(group => {
-              const balance = (group as any).calculatedBalance ?? 0
+              const balance = group.calculatedBalance ?? 0
 
               return (
                 <Link key={group.id} href={`/group/${group.id}`}>
@@ -171,23 +180,15 @@ export default function Home() {
                           {group.participants.length} pessoas
                         </p>
 
-                        {/* AVATARES */}
                         <div className="flex -space-x-2 mt-3">
                           {group.participants.slice(0, 4).map(p => (
                             <div
                               key={p.id}
-                              title={p.name}
                               className="w-8 h-8 rounded-full bg-[#5BC5A7] text-white flex items-center justify-center text-xs font-semibold border-2 border-white"
                             >
                               {p.name.charAt(0).toUpperCase()}
                             </div>
                           ))}
-
-                          {group.participants.length > 4 && (
-                            <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-xs font-semibold border-2 border-white">
-                              +{group.participants.length - 4}
-                            </div>
-                          )}
                         </div>
                       </div>
 
@@ -195,15 +196,13 @@ export default function Home() {
                         {balance > 0 && (
                           <p className="text-sm text-[#5BC5A7]">
                             R$ {balance.toFixed(2)}
-                            <br />
-                            te devem
+                            <br />te devem
                           </p>
                         )}
                         {balance < 0 && (
                           <p className="text-sm text-[#FF6B6B]">
                             R$ {Math.abs(balance).toFixed(2)}
-                            <br />
-                            você deve
+                            <br />você deve
                           </p>
                         )}
                         {balance === 0 && (
@@ -225,12 +224,6 @@ export default function Home() {
           </h2>
 
           <div className="space-y-3">
-            {transactions.length === 0 && (
-              <p className="text-sm text-gray-500">
-                Nenhuma atividade ainda.
-              </p>
-            )}
-
             {transactions.map(tx => {
               const group = groups.find(g => g.id === tx.group_id)
               const payer =
