@@ -4,7 +4,7 @@ import { User } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/context/AuthContext'
+import { getCurrentUser } from '@/lib/auth'
 
 interface Participant {
   id: string
@@ -35,16 +35,8 @@ export default function Home() {
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  // =========================
-  // LOAD DATA (SEM LOOP)
-  // =========================
   useEffect(() => {
-    if (authLoading) return
-
-    if (!user) {
-      setLoading(false)
-      return
-    }
+    if (!user) return
 
     async function load() {
       const { data: g } = await supabase.from('groups').select('*')
@@ -61,11 +53,8 @@ export default function Home() {
     }
 
     load()
-  }, [authLoading, user])
+  }, [user])
 
-  // =========================
-  // CALCULATE BALANCES
-  // =========================
   function calculateBalances(
     groups: Group[],
     transactions: Transaction[],
@@ -78,8 +67,8 @@ export default function Home() {
       let balance = 0
 
       groupTx.forEach(tx => {
-        if (tx.payer_id === me) balance += Number(tx.value)
-        balance -= Number(tx.splits?.[me] ?? 0)
+        if (tx.payer_id === me) balance += tx.value
+        balance -= tx.splits?.[me] ?? 0
       })
 
       ;(group as any).calculatedBalance = balance
@@ -89,10 +78,7 @@ export default function Home() {
     setTotalBalance(global)
   }
 
-  // =========================
-  // LOADING STATE
-  // =========================
-  if (authLoading || loading) {
+  if (authLoading || loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         Carregando...
@@ -100,9 +86,6 @@ export default function Home() {
     )
   }
 
-  // =========================
-  // UI
-  // =========================
   return (
     <div className="min-h-screen bg-[#F7F7F7]">
 
@@ -113,12 +96,12 @@ export default function Home() {
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center font-bold">
-                {user?.email?.charAt(0).toUpperCase()}
+                {user.email?.charAt(0).toUpperCase()}
               </div>
               <div>
                 <p className="text-sm opacity-90">Bem-vindo,</p>
                 <p className="text-lg font-semibold">
-                  {user?.email?.split('@')[0]}
+                  {user.email?.split('@')[0]}
                 </p>
               </div>
             </div>
@@ -130,7 +113,7 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* SALDO */}
+          {/* SALDO CENTRAL */}
           <div className="mt-8 text-center">
             <p className="text-sm opacity-90">Saldo total</p>
 
@@ -162,10 +145,10 @@ export default function Home() {
         </div>
       </div>
 
-      {/* CONTENT */}
+      {/* CONTEÚDO */}
       <main className="max-w-4xl mx-auto px-6 py-6 space-y-8">
 
-        {/* GROUPS */}
+        {/* GRUPOS */}
         <section>
           <div className="flex justify-between mb-3">
             <h2 className="font-semibold text-gray-800">Grupos recentes</h2>
@@ -193,11 +176,18 @@ export default function Home() {
                           {group.participants.slice(0, 4).map(p => (
                             <div
                               key={p.id}
+                              title={p.name}
                               className="w-8 h-8 rounded-full bg-[#5BC5A7] text-white flex items-center justify-center text-xs font-semibold border-2 border-white"
                             >
                               {p.name.charAt(0).toUpperCase()}
                             </div>
                           ))}
+
+                          {group.participants.length > 4 && (
+                            <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-xs font-semibold border-2 border-white">
+                              +{group.participants.length - 4}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -205,13 +195,15 @@ export default function Home() {
                         {balance > 0 && (
                           <p className="text-sm text-[#5BC5A7]">
                             R$ {balance.toFixed(2)}
-                            <br />te devem
+                            <br />
+                            te devem
                           </p>
                         )}
                         {balance < 0 && (
                           <p className="text-sm text-[#FF6B6B]">
                             R$ {Math.abs(balance).toFixed(2)}
-                            <br />você deve
+                            <br />
+                            você deve
                           </p>
                         )}
                         {balance === 0 && (
@@ -226,7 +218,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ACTIVITIES */}
+        {/* ATIVIDADES */}
         <section>
           <h2 className="font-semibold text-gray-800 mb-3">
             Atividades recentes
@@ -242,7 +234,7 @@ export default function Home() {
             {transactions.map(tx => {
               const group = groups.find(g => g.id === tx.group_id)
               const payer =
-                tx.payer_id === user?.id
+                tx.payer_id === user.id
                   ? 'Você'
                   : group?.participants.find(p => p.id === tx.payer_id)?.name ||
                     'Alguém'
