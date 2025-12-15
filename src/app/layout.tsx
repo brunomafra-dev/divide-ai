@@ -6,7 +6,7 @@ import "./globals.css";
 import "../lib/fonts";
 
 // ADICIONADO AGORA:
-import Navbar from "@/components/Navbar";
+import ProtectedNavbar from "@/components/ProtectedNavbar";
 import ActionModalProvider from "@/components/ActionModalProvider";
 import { AuthProvider } from "@/context/AuthContext"; // 👈 AQUI
 
@@ -40,18 +40,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#F7F7F7]`}
       >
         {/* 🔐 AUTH GLOBAL */}
-        <AuthProvider>
-          {/* Provider do modal */}
-          <ActionModalProvider>
-            {/* Conteúdo da página */}
-            <div className="pb-32">{children}</div>
+      <AuthProvider>
+  <ActionModalProvider>
+    <div className="pb-32">{children}</div>
 
-            {/* Navbar fixa */}
-            <Navbar />
-          </ActionModalProvider>
-        </AuthProvider>
-      </body>
-    </html>
-  );
-}
+    {/* Navbar só aparece se estiver logado */}
+    <ProtectedNavbar />
+  </ActionModalProvider>
+</AuthProvider>
 
