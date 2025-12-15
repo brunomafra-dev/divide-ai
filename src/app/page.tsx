@@ -80,31 +80,40 @@ export default function Home() {
   }, [user])
 
   function calculateBalances(
-    groups: any[],
-    transactions: Transaction[],
-    me: string
-  ): Group[] {
-    return groups.map(group => {
-      const groupTx = transactions.filter(tx => tx.group_id === group.id)
+  groups: Group[],
+  transactions: Transaction[],
+  me: string
+) {
+  let global = 0
 
-      let balance = 0
+  const updated = groups.map(group => {
+    const groupTx = transactions.filter(tx => tx.group_id === group.id)
+    let balance = 0
 
-      groupTx.forEach(tx => {
-        const value = Number(tx.value) || 0
-        const mySplit = Number(tx.splits?.[me] || 0)
+    groupTx.forEach(tx => {
+      const value = Number(tx.value) || 0
+      const mySplit = Number(tx.splits?.self || 0)
 
-        if (tx.payer_id === me) balance += value
-        balance -= mySplit
-      })
-
-      return {
-        id: group.id,
-        name: group.name,
-        participants: group.participants,
-        calculatedBalance: balance,
+      // Se eu paguei, recebo o valor inteiro
+      if (tx.payer_id === me) {
+        balance += value
       }
+
+      // Sempre desconto minha parte
+      balance -= mySplit
     })
-  }
+
+    global += balance
+
+    return {
+      ...group,
+      calculatedBalance: balance,
+    }
+  })
+
+  setTotalBalance(global)
+  return updated
+}
 
   // ---------------- STATES ----------------
 
