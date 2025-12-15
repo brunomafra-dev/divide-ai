@@ -35,10 +35,15 @@ export default function Home() {
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    async function load() {
-      const currentUser = await getCurrentUser()
-      if (!currentUser) return
+ useEffect(() => {
+  async function load() {
+    const currentUser = await getCurrentUser()
+
+    if (!currentUser) {
+      setLoading(false)
+      return
+    }
+
 
       setUser(currentUser)
 
