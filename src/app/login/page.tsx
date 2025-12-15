@@ -5,23 +5,24 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
+  const [error, setError] = useState<string | null>(null)
 
   async function handleLogin() {
     setLoading(true)
+    setError(null)
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
-    setLoading(false)
-
     if (error) {
-      alert(error.message)
+      setError(error.message)
+      setLoading(false)
       return
     }
 
@@ -29,33 +30,43 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F7F7F7]">
-      <div className="bg-white p-6 rounded-xl w-80 shadow">
-        <h1 className="text-xl font-semibold mb-4">Entrar</h1>
+    <div className="min-h-screen flex items-center justify-center bg-[#F7F7F7] px-6">
+      <div className="bg-white p-6 rounded-xl shadow-sm w-full max-w-sm space-y-4">
+        <h1 className="text-xl font-semibold text-center">Entrar</h1>
 
         <input
-          className="w-full border p-2 rounded mb-3"
+          type="email"
           placeholder="Email"
+          className="w-full border rounded-lg px-4 py-2"
           value={email}
           onChange={e => setEmail(e.target.value)}
         />
 
         <input
           type="password"
-          className="w-full border p-2 rounded mb-4"
           placeholder="Senha"
+          className="w-full border rounded-lg px-4 py-2"
           value={password}
           onChange={e => setPassword(e.target.value)}
         />
 
+        {error && <p className="text-sm text-red-500">{error}</p>}
+
         <button
           onClick={handleLogin}
-          className="w-full bg-[#5BC5A7] text-white py-2 rounded"
+          disabled={loading}
+          className="w-full bg-[#5BC5A7] text-white py-2 rounded-lg"
         >
           {loading ? 'Entrando...' : 'Entrar'}
         </button>
+
+        <p className="text-sm text-center text-gray-500">
+          Não tem conta?{' '}
+          <a href="/register" className="text-[#5BC5A7] font-medium">
+            Criar conta
+          </a>
+        </p>
       </div>
     </div>
   )
 }
-
