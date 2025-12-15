@@ -92,14 +92,20 @@ export default function Home() {
     return updated
   }
 
-  if (loading || !user) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         Carregando...
       </div>
     )
   }
-
+  if (!user) {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-gray-500">Você não está logado</p>
+    </div>
+  )
+}
   return (
     <div className="min-h-screen bg-[#F7F7F7]">
 
