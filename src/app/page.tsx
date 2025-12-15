@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
-import { useRouter } from 'next/navigation'
 
 interface Participant {
   id: string
@@ -31,19 +30,11 @@ interface Transaction {
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth()
-  const router = useRouter()
 
   const [groups, setGroups] = useState<Group[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
-
-  // 🔐 PROTEÇÃO REAL DA ROTA
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.replace('/login')
-    }
-  }, [authLoading, user, router])
 
   useEffect(() => {
     if (!user) return
@@ -51,21 +42,48 @@ export default function Home() {
     async function load() {
       setLoading(true)
 
-      const { data: g } = await supabase.from('groups').select('*')
-      const { data: t } = await supabase
+      // 1️⃣ BUSCA SOMENTE GRUPOS DO USUÁRIO
+      const { data: g, error: gError } = await supabase
+        .from('groups')
+        .select('*')
+        .contains('participants', [user.id])
+
+      if (gError) {
+        console.error('Erro grupos', gError)
+        setLoading(false)
+        return
+      }
+
+      // 2️⃣ BUSCA TODAS AS TRANSAÇÕES (SEM LIMIT)
+      const { data: allTx, error: tError } = await supabase
         .from('transactions')
         .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5)
 
+      if (tError) {
+        console.error('Erro transações', tError)
+        setLoading(false)
+        return
+      }
+
+      // 3️⃣ CALCULA SALDOS REAIS
       const groupsWithBalance = calculateBalances(
         g || [],
-        t || [],
+        allTx || [],
         user.id
       )
 
+      // 4️⃣ ATIVIDADES RECENTES (SÓ PARA UI)
+      const previewTx = (allTx || [])
+        .filter(tx => g?.some(gr => gr.id === tx.group_id))
+        .sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() -
+            new Date(a.created_at).getTime()
+        )
+        .slice(0, 5)
+
       setGroups(groupsWithBalance)
-      setTransactions(t || [])
+      setTransactions(previewTx)
       setLoading(false)
     }
 
@@ -79,24 +97,28 @@ export default function Home() {
   ) {
     let global = 0
 
-    const updated = groups.map(group => {
+    const updatedGroups = groups.map(group => {
       const groupTx = transactions.filter(tx => tx.group_id === group.id)
       let balance = 0
 
       groupTx.forEach(tx => {
-        if (tx.payer_id === me) balance += tx.value
-        balance -= tx.splits?.[me] ?? 0
+        if (tx.payer_id === me) balance += Number(tx.value)
+        balance -= Number(tx.splits?.[me] ?? 0)
       })
 
       global += balance
-      return { ...group, calculatedBalance: balance }
+
+      return {
+        ...group,
+        calculatedBalance: balance,
+      }
     })
 
     setTotalBalance(global)
-    return updated
+    return updatedGroups
   }
 
-  // ⏳ Loading único e previsível
+  // 🔐 ESTADOS GLOBAIS
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -105,8 +127,13 @@ export default function Home() {
     )
   }
 
-  // 🚫 Nunca renderiza Home sem user (segurança extra)
-  if (!user) return null
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-500">
+        Você não está logado
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F7F7]">
@@ -135,7 +162,7 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* SALDO */}
+          {/* SALDO TOTAL */}
           <div className="mt-8 text-center">
             <p className="text-sm opacity-90">Saldo total</p>
 
