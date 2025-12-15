@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
+import { useRouter } from 'next/navigation'
 
 interface Participant {
   id: string
@@ -30,11 +31,19 @@ interface Transaction {
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth()
+  const router = useRouter()
 
   const [groups, setGroups] = useState<Group[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
+
+  // 🔐 PROTEÇÃO REAL DA ROTA
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/login')
+    }
+  }, [authLoading, user, router])
 
   useEffect(() => {
     if (!user) return
@@ -87,7 +96,7 @@ export default function Home() {
     return updated
   }
 
-  // 🔐 Estados globais corretos
+  // ⏳ Loading único e previsível
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -96,13 +105,8 @@ export default function Home() {
     )
   }
 
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">Você não está logado</p>
-      </div>
-    )
-  }
+  // 🚫 Nunca renderiza Home sem user (segurança extra)
+  if (!user) return null
 
   return (
     <div className="min-h-screen bg-[#F7F7F7]">
@@ -260,4 +264,3 @@ export default function Home() {
     </div>
   )
 }
-
