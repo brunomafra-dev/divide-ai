@@ -4,7 +4,7 @@ import { User } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/context/AuthContext'
+import { getCurrentUser } from '@/lib/auth'
 
 interface Participant {
   id: string
@@ -15,7 +15,7 @@ interface Group {
   id: string
   name: string
   participants: Participant[]
-  calculatedBalance: number
+  calculatedBalance?: number
 }
 
 interface Transaction {
@@ -24,100 +24,78 @@ interface Transaction {
   value: number
   payer_id: string
   description: string
-  splits: Record<string, number> | null
+  splits: Record<string, number>
   created_at: string
 }
 
 export default function Home() {
-  const { user, loading: authLoading } = useAuth()
-
+  const [user, setUser] = useState<any>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!user) return
-
     async function load() {
-      setLoading(true)
+      const currentUser = await getCurrentUser()
 
-      const { data: rawGroups } = await supabase
-        .from('groups')
-        .select('*')
+      if (!currentUser) {
+        setLoading(false)
+        return
+      }
 
-      const { data: allTransactions } = await supabase
+      setUser(currentUser)
+
+      const { data: g } = await supabase.from('groups').select('*')
+      const { data: t } = await supabase
         .from('transactions')
         .select('*')
         .order('created_at', { ascending: false })
-
-      const safeGroups = (rawGroups || []).map(g => ({
-        ...g,
-        participants: Array.isArray(g.participants) ? g.participants : [],
-      }))
-
-      const safeTransactions = allTransactions || []
+        .limit(5)
 
       const groupsWithBalance = calculateBalances(
-        safeGroups,
-        safeTransactions,
-        user.id
-      )
-
-      // 🔥 SALDO TOTAL = soma real dos grupos
-      const global = groupsWithBalance.reduce(
-        (sum, g) => sum + g.calculatedBalance,
-        0
+        g || [],
+        t || [],
+        currentUser.id
       )
 
       setGroups(groupsWithBalance)
-      setTransactions(safeTransactions.slice(0, 5)) // só preview
-      setTotalBalance(global)
+      setTransactions(t || [])
       setLoading(false)
     }
 
     load()
-  }, [user])
+  }, [])
 
   function calculateBalances(
-  groups: Group[],
-  transactions: Transaction[],
-  me: string
-) {
-  let globalBalance = 0
+    groups: Group[],
+    transactions: Transaction[],
+    me: string
+  ) {
+    let global = 0
 
-  const updatedGroups = groups.map(group => {
-    const groupTx = transactions.filter(tx => tx.group_id === group.id)
-    let groupBalance = 0
+    const updated = groups.map(group => {
+      const groupTx = transactions.filter(tx => tx.group_id === group.id)
+      let balance = 0
 
-    groupTx.forEach(tx => {
-      const myShare = tx.splits?.[me] ?? 0
+      // Calculando o saldo de cada grupo
+      groupTx.forEach(tx => {
+        // Somar valor pago se for o usuário que pagou
+        if (tx.payer_id === me) balance += tx.value
+        // Subtrair valor devido para esse usuário
+        balance -= tx.splits?.[me] ?? 0
+      })
 
-      if (tx.payer_id === me) {
-        // Eu paguei → me devem o que os outros gastaram
-        groupBalance += tx.value - myShare
-        globalBalance += tx.value - myShare
-      } else {
-        // Outro pagou → eu devo minha parte
-        groupBalance -= myShare
-        globalBalance -= myShare
-      }
+      global += balance
+      return { ...group, calculatedBalance: balance }
     })
 
-    return {
-      ...group,
-      calculatedBalance: groupBalance,
-    }
-  })
+    setTotalBalance(global)
+    return updated
+  }
 
-  setTotalBalance(globalBalance)
-  return updatedGroups
-}
-
-
-  // ---------------- STATES ----------------
-
-  if (authLoading || loading) {
+  // 🔐 Estados globais corretos
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         Carregando...
@@ -127,13 +105,11 @@ export default function Home() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
-        Você não está logado
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-500">Você não está logado</p>
       </div>
     )
   }
-
-  // ---------------- UI ----------------
 
   return (
     <div className="min-h-screen bg-[#F7F7F7]">
@@ -162,7 +138,7 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* SALDO TOTAL */}
+          {/* SALDO */}
           <div className="mt-8 text-center">
             <p className="text-sm opacity-90">Saldo total</p>
 
@@ -208,7 +184,7 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {groups.map(group => {
-              const balance = group.calculatedBalance
+              const balance = group.calculatedBalance ?? 0
 
               return (
                 <Link key={group.id} href={`/group/${group.id}`}>
@@ -276,7 +252,7 @@ export default function Home() {
                   className="bg-white p-4 rounded-xl shadow-sm border"
                 >
                   <p className="font-medium text-gray-800">
-                    {payer} pagou R$ {Number(tx.value).toFixed(2)} em {group?.name}
+                    {payer} pagou R$ {tx.value.toFixed(2)} em {group?.name}
                   </p>
                   <p className="text-sm text-gray-500">
                     {new Date(tx.created_at).toLocaleString('pt-BR')}
