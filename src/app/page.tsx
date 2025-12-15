@@ -46,7 +46,7 @@ export default function Home() {
         .from('groups')
         .select('*')
 
-      const { data: txs } = await supabase
+      const { data: allTransactions } = await supabase
         .from('transactions')
         .select('*')
         .order('created_at', { ascending: false })
@@ -56,16 +56,23 @@ export default function Home() {
         participants: Array.isArray(g.participants) ? g.participants : [],
       }))
 
-      const safeTxs = txs || []
+      const safeTransactions = allTransactions || []
 
       const groupsWithBalance = calculateBalances(
         safeGroups,
-        safeTxs,
+        safeTransactions,
         user.id
       )
 
+      // 🔥 SALDO TOTAL = soma real dos grupos
+      const global = groupsWithBalance.reduce(
+        (sum, g) => sum + g.calculatedBalance,
+        0
+      )
+
       setGroups(groupsWithBalance)
-      setTransactions(safeTxs.slice(0, 5))
+      setTransactions(safeTransactions.slice(0, 5)) // só preview
+      setTotalBalance(global)
       setLoading(false)
     }
 
@@ -77,18 +84,18 @@ export default function Home() {
     transactions: Transaction[],
     me: string
   ): Group[] {
-    let global = 0
-
-    const updated = groups.map(group => {
+    return groups.map(group => {
       const groupTx = transactions.filter(tx => tx.group_id === group.id)
+
       let balance = 0
 
       groupTx.forEach(tx => {
-        if (tx.payer_id === me) balance += Number(tx.value)
-        balance -= Number(tx.splits?.[me] || 0)
-      })
+        const value = Number(tx.value) || 0
+        const mySplit = Number(tx.splits?.[me] || 0)
 
-      global += balance
+        if (tx.payer_id === me) balance += value
+        balance -= mySplit
+      })
 
       return {
         id: group.id,
@@ -97,9 +104,6 @@ export default function Home() {
         calculatedBalance: balance,
       }
     })
-
-    setTotalBalance(global)
-    return updated
   }
 
   // ---------------- STATES ----------------
@@ -149,7 +153,7 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* SALDO */}
+          {/* SALDO TOTAL */}
           <div className="mt-8 text-center">
             <p className="text-sm opacity-90">Saldo total</p>
 
