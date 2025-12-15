@@ -84,36 +84,36 @@ export default function Home() {
   transactions: Transaction[],
   me: string
 ) {
-  let global = 0
+  let globalBalance = 0
 
-  const updated = groups.map(group => {
+  const updatedGroups = groups.map(group => {
     const groupTx = transactions.filter(tx => tx.group_id === group.id)
-    let balance = 0
+    let groupBalance = 0
 
     groupTx.forEach(tx => {
-      const value = Number(tx.value) || 0
-      const mySplit = Number(tx.splits?.self || 0)
+      const myShare = tx.splits?.[me] ?? 0
 
-      // Se eu paguei, recebo o valor inteiro
       if (tx.payer_id === me) {
-        balance += value
+        // Eu paguei → me devem o que os outros gastaram
+        groupBalance += tx.value - myShare
+        globalBalance += tx.value - myShare
+      } else {
+        // Outro pagou → eu devo minha parte
+        groupBalance -= myShare
+        globalBalance -= myShare
       }
-
-      // Sempre desconto minha parte
-      balance -= mySplit
     })
-
-    global += balance
 
     return {
       ...group,
-      calculatedBalance: balance,
+      calculatedBalance: groupBalance,
     }
   })
 
-  setTotalBalance(global)
-  return updated
+  setTotalBalance(globalBalance)
+  return updatedGroups
 }
+
 
   // ---------------- STATES ----------------
 
