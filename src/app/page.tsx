@@ -67,41 +67,49 @@ export default function Home() {
     load()
   }, [])
 
-  function calculateBalances(
-    groups: Group[],
-    transactions: Transaction[],
-    me: string
-  ) {
-    let global = 0
+ function calculateBalances(
+  groups: Group[],
+  transactions: Transaction[],
+  myId: string
+) {
+  let globalBalance = 0
 
-    const updated = groups.map(group => {
-      const groupTx = transactions.filter(tx => tx.group_id === group.id)
-      let balance = 0
+  const updatedGroups = groups.map(group => {
+    let balance = 0
 
-      // Calculando o saldo de cada grupo
-      groupTx.forEach(tx => {
-        // Somar valor pago se for o usuário que pagou
-        if (tx.payer_id === me) balance += tx.value
-        // Subtrair valor devido para esse usuário
-        balance -= tx.splits?.[me] ?? 0
-      })
+    const groupTx = transactions.filter(
+      tx => tx.group_id === group.id
+    )
 
-      global += balance
-      return { ...group, calculatedBalance: balance }
+    groupTx.forEach(tx => {
+      const splits = tx.splits || {}
+
+      // quanto EU devo nessa transação
+      const myShare =
+        splits[myId] ??
+        splits['self'] ??
+        0
+
+      if (tx.payer_id === myId) {
+        // eu paguei → os outros me devem
+        balance += tx.value - myShare
+      } else {
+        // outro pagou → eu devo minha parte
+        balance -= myShare
+      }
     })
 
-    setTotalBalance(global)
-    return updated
-  }
+    globalBalance += balance
 
-  // 🔐 Estados globais corretos
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        Carregando...
-      </div>
-    )
-  }
+    return {
+      ...group,
+      calculatedBalance: balance
+    }
+  })
+
+  setTotalBalance(globalBalance)
+  return updatedGroups
+}
 
   if (!user) {
     return (
