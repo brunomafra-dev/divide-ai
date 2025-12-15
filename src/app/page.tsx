@@ -4,7 +4,7 @@ import { User } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { getCurrentUser } from '@/lib/auth'
+import { useAuth } from '@/context/AuthContext'
 
 interface Participant {
   id: string
@@ -29,23 +29,18 @@ interface Transaction {
 }
 
 export default function Home() {
-  const [user, setUser] = useState<any>(null)
+  const { user, loading: authLoading } = useAuth()
+
   const [groups, setGroups] = useState<Group[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
 
- useEffect(() => {
-  async function load() {
-    const currentUser = await getCurrentUser()
+  useEffect(() => {
+    if (!user) return
 
-    if (!currentUser) {
-      setLoading(false)
-      return
-    }
-
-
-      setUser(currentUser)
+    async function load() {
+      setLoading(true)
 
       const { data: g } = await supabase.from('groups').select('*')
       const { data: t } = await supabase
@@ -57,7 +52,7 @@ export default function Home() {
       const groupsWithBalance = calculateBalances(
         g || [],
         t || [],
-        currentUser.id
+        user.id
       )
 
       setGroups(groupsWithBalance)
@@ -66,7 +61,7 @@ export default function Home() {
     }
 
     load()
-  }, [])
+  }, [user])
 
   function calculateBalances(
     groups: Group[],
@@ -92,20 +87,23 @@ export default function Home() {
     return updated
   }
 
-  if (loading) {
+  // 🔐 Estados globais corretos
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         Carregando...
       </div>
     )
   }
+
   if (!user) {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-500">Você não está logado</p>
-    </div>
-  )
-}
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-500">Você não está logado</p>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[#F7F7F7]">
 
@@ -206,14 +204,12 @@ export default function Home() {
                       <div className="text-right">
                         {balance > 0 && (
                           <p className="text-sm text-[#5BC5A7]">
-                            R$ {balance.toFixed(2)}
-                            <br />te devem
+                            R$ {balance.toFixed(2)}<br />te devem
                           </p>
                         )}
                         {balance < 0 && (
                           <p className="text-sm text-[#FF6B6B]">
-                            R$ {Math.abs(balance).toFixed(2)}
-                            <br />você deve
+                            R$ {Math.abs(balance).toFixed(2)}<br />você deve
                           </p>
                         )}
                         {balance === 0 && (
@@ -264,3 +260,4 @@ export default function Home() {
     </div>
   )
 }
+
