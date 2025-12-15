@@ -42,48 +42,31 @@ export default function Home() {
     async function load() {
       setLoading(true)
 
-      // 1️⃣ BUSCA SOMENTE GRUPOS DO USUÁRIO
-      const { data: g, error: gError } = await supabase
+      // 🔹 Busca TODOS os grupos
+      const { data: allGroups } = await supabase
         .from('groups')
         .select('*')
-        .contains('participants', [user.id])
 
-      if (gError) {
-        console.error('Erro grupos', gError)
-        setLoading(false)
-        return
-      }
+      // 🔹 Filtra apenas grupos onde o usuário participa
+      const userGroups =
+        (allGroups || []).filter(group =>
+          group.participants?.some((p: any) => p.id === user.id)
+        )
 
-      // 2️⃣ BUSCA TODAS AS TRANSAÇÕES (SEM LIMIT)
-      const { data: allTx, error: tError } = await supabase
+      // 🔹 Busca TODAS as transações (para cálculo correto)
+      const { data: allTx } = await supabase
         .from('transactions')
         .select('*')
+        .order('created_at', { ascending: false })
 
-      if (tError) {
-        console.error('Erro transações', tError)
-        setLoading(false)
-        return
-      }
-
-      // 3️⃣ CALCULA SALDOS REAIS
       const groupsWithBalance = calculateBalances(
-        g || [],
+        userGroups,
         allTx || [],
         user.id
       )
 
-      // 4️⃣ ATIVIDADES RECENTES (SÓ PARA UI)
-      const previewTx = (allTx || [])
-        .filter(tx => g?.some(gr => gr.id === tx.group_id))
-        .sort(
-          (a, b) =>
-            new Date(b.created_at).getTime() -
-            new Date(a.created_at).getTime()
-        )
-        .slice(0, 5)
-
       setGroups(groupsWithBalance)
-      setTransactions(previewTx)
+      setTransactions((allTx || []).slice(0, 5)) // preview
       setLoading(false)
     }
 
@@ -97,28 +80,24 @@ export default function Home() {
   ) {
     let global = 0
 
-    const updatedGroups = groups.map(group => {
+    const updated = groups.map(group => {
       const groupTx = transactions.filter(tx => tx.group_id === group.id)
       let balance = 0
 
       groupTx.forEach(tx => {
         if (tx.payer_id === me) balance += Number(tx.value)
-        balance -= Number(tx.splits?.[me] ?? 0)
+        balance -= tx.splits?.[me] ?? 0
       })
 
       global += balance
-
-      return {
-        ...group,
-        calculatedBalance: balance,
-      }
+      return { ...group, calculatedBalance: balance }
     })
 
     setTotalBalance(global)
-    return updatedGroups
+    return updated
   }
 
-  // 🔐 ESTADOS GLOBAIS
+  // 🔐 Estados globais corretos
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -129,8 +108,8 @@ export default function Home() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
-        Você não está logado
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-500">Você não está logado</p>
       </div>
     )
   }
@@ -197,7 +176,7 @@ export default function Home() {
       {/* CONTEÚDO */}
       <main className="max-w-4xl mx-auto px-6 py-6 space-y-8">
 
-        {/* GRUPOS */}
+        {/* GRUPOS RECENTES */}
         <section>
           <div className="flex justify-between mb-3">
             <h2 className="font-semibold text-gray-800">Grupos recentes</h2>
@@ -220,15 +199,23 @@ export default function Home() {
                           {group.participants.length} pessoas
                         </p>
 
+                        {/* AVATARES */}
                         <div className="flex -space-x-2 mt-3">
                           {group.participants.slice(0, 4).map(p => (
                             <div
                               key={p.id}
+                              title={p.name}
                               className="w-8 h-8 rounded-full bg-[#5BC5A7] text-white flex items-center justify-center text-xs font-semibold border-2 border-white"
                             >
                               {p.name.charAt(0).toUpperCase()}
                             </div>
                           ))}
+
+                          {group.participants.length > 4 && (
+                            <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-xs font-semibold border-2 border-white">
+                              +{group.participants.length - 4}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -255,7 +242,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ATIVIDADES */}
+        {/* ATIVIDADES RECENTES */}
         <section>
           <h2 className="font-semibold text-gray-800 mb-3">
             Atividades recentes
@@ -276,7 +263,7 @@ export default function Home() {
                   className="bg-white p-4 rounded-xl shadow-sm border"
                 >
                   <p className="font-medium text-gray-800">
-                    {payer} pagou R$ {tx.value.toFixed(2)} em {group?.name}
+                    {payer} pagou R$ {Number(tx.value).toFixed(2)} em {group?.name}
                   </p>
                   <p className="text-sm text-gray-500">
                     {new Date(tx.created_at).toLocaleString('pt-BR')}
