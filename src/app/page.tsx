@@ -70,9 +70,9 @@ export default function Home() {
  function calculateBalances(
   groups: Group[],
   transactions: Transaction[],
-  myId: string
+  userId: string
 ) {
-  let globalBalance = 0
+  let global = 0
 
   const updatedGroups = groups.map(group => {
     let balance = 0
@@ -84,13 +84,12 @@ export default function Home() {
     groupTx.forEach(tx => {
       const splits = tx.splits || {}
 
-      // quanto EU devo nessa transação
       const myShare =
-        splits[myId] ??
-        splits['self'] ??
+        Number(splits[userId]) ||
+        Number(splits['self']) ||
         0
 
-      if (tx.payer_id === myId) {
+      if (tx.payer_id === userId) {
         // eu paguei → os outros me devem
         balance += tx.value - myShare
       } else {
@@ -99,7 +98,7 @@ export default function Home() {
       }
     })
 
-    globalBalance += balance
+    global += balance
 
     return {
       ...group,
@@ -107,7 +106,7 @@ export default function Home() {
     }
   })
 
-  setTotalBalance(globalBalance)
+  setTotalBalance(global)
   return updatedGroups
 }
 
