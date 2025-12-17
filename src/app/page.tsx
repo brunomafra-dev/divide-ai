@@ -23,7 +23,7 @@ interface Transaction {
   group_id: string
   value: number
   payer_id: string
-  splits: Record<string, number>
+  splits: { self?: number }
   created_at: string
 }
 
@@ -66,8 +66,8 @@ export default function Home() {
             paidByMe += Number(tx.value)
           }
 
-          if (tx.splits && tx.splits[currentUser.id]) {
-            myShare += Number(tx.splits[currentUser.id])
+          if (tx.splits?.self) {
+            myShare += Number(tx.splits.self)
           }
         })
 
@@ -108,6 +108,7 @@ export default function Home() {
       {/* HEADER */}
       <div className="bg-gradient-to-r from-[#5BC5A7] to-[#6FD1BE]">
         <div className="max-w-4xl mx-auto px-6 py-6 text-white">
+
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center font-bold">
@@ -163,7 +164,7 @@ export default function Home() {
       {/* CONTEÚDO */}
       <main className="max-w-4xl mx-auto px-6 py-6 space-y-8">
 
-        {/* GRUPOS */}
+        {/* GRUPOS RECENTES */}
         <section>
           <div className="flex justify-between mb-3">
             <h2 className="font-semibold text-gray-800">Grupos recentes</h2>
@@ -178,31 +179,77 @@ export default function Home() {
 
               return (
                 <Link key={group.id} href={`/group/${group.id}`}>
-                  <div className="bg-white rounded-xl p-4 shadow-sm border hover:shadow-md transition flex justify-between">
-                    <div>
-                      <p className="font-medium">{group.name}</p>
-                      <p className="text-sm text-gray-500">
-                        {group.participants.length} pessoas
-                      </p>
-                    </div>
+                  <div className="bg-white rounded-xl p-4 shadow-sm border hover:shadow-md transition">
+                    <div className="flex justify-between">
+                      <div>
+                        <p className="font-medium">{group.name}</p>
+                        <p className="text-sm text-gray-500">
+                          {group.participants.length} pessoas
+                        </p>
 
-                    <div className="text-right">
-                      {balance > 0 && (
-                        <p className="text-sm text-[#5BC5A7]">
-                          R$ {balance.toFixed(2)}<br />te devem
-                        </p>
-                      )}
-                      {balance < 0 && (
-                        <p className="text-sm text-[#FF6B6B]">
-                          R$ {Math.abs(balance).toFixed(2)}<br />você deve
-                        </p>
-                      )}
-                      {balance === 0 && (
-                        <p className="text-sm text-gray-500">zerado</p>
-                      )}
+                        {/* AVATARES */}
+                        <div className="flex -space-x-2 mt-3">
+                          {group.participants.map(p => (
+                            <div
+                              key={p.id}
+                              className="w-8 h-8 rounded-full bg-[#5BC5A7] text-white flex items-center justify-center text-xs font-semibold border-2 border-white"
+                            >
+                              {p.name.charAt(0).toUpperCase()}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        {balance > 0 && (
+                          <p className="text-sm text-[#5BC5A7]">
+                            R$ {balance.toFixed(2)}<br />te devem
+                          </p>
+                        )}
+                        {balance < 0 && (
+                          <p className="text-sm text-[#FF6B6B]">
+                            R$ {Math.abs(balance).toFixed(2)}<br />você deve
+                          </p>
+                        )}
+                        {balance === 0 && (
+                          <p className="text-sm text-gray-500">zerado</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </Link>
+              )
+            })}
+          </div>
+        </section>
+
+        {/* ATIVIDADES RECENTES */}
+        <section>
+          <h2 className="font-semibold text-gray-800 mb-3">
+            Atividades recentes
+          </h2>
+
+          <div className="space-y-3">
+            {transactions.map(tx => {
+              const group = groups.find(g => g.id === tx.group_id)
+              const payer =
+                tx.payer_id === user.id
+                  ? 'Você'
+                  : group?.participants.find(p => p.id === tx.payer_id)?.name ||
+                    'Alguém'
+
+              return (
+                <div
+                  key={tx.id}
+                  className="bg-white p-4 rounded-xl shadow-sm border"
+                >
+                  <p className="font-medium text-gray-800">
+                    {payer} pagou R$ {tx.value.toFixed(2)} em {group?.name}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {new Date(tx.created_at).toLocaleString('pt-BR')}
+                  </p>
+                </div>
               )
             })}
           </div>
