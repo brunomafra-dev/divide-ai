@@ -65,13 +65,21 @@ export default function Home() {
   }, [user])
 
   // 🧮 CÁLCULO CORRETO
-  useEffect(() => {
-    if (!user || groups.length === 0) return
+ useEffect(() => {
+  if (!user) return
+
+  async function loadData() {
+    const { data: g } = await supabase.from('groups').select('*')
+    const { data: t } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(5)
 
     let global = 0
 
-    const updatedGroups = groups.map(group => {
-      const groupTx = transactions.filter(tx => tx.group_id === group.id)
+    const groupsWithBalance = (g || []).map(group => {
+      const groupTx = (t || []).filter(tx => tx.group_id === group.id)
 
       let paidByMe = 0
       let myShare = 0
@@ -81,7 +89,6 @@ export default function Home() {
           paidByMe += Number(tx.value)
         }
 
-        // 🔥 AQUI ESTAVA O ERRO
         if (tx.splits && tx.splits[user.id]) {
           myShare += Number(tx.splits[user.id])
         }
@@ -93,9 +100,14 @@ export default function Home() {
       return { ...group, calculatedBalance: balance }
     })
 
-    setGroups(updatedGroups)
+    setGroups(groupsWithBalance)
+    setTransactions(t || [])
     setTotalBalance(global)
-  }, [transactions, user])
+  }
+
+  loadData()
+}, [user])
+
 
   if (loading) {
     return (
