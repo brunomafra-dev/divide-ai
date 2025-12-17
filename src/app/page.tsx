@@ -35,18 +35,17 @@ export default function Home() {
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  // 🔐 CARREGA USUÁRIO
+  // 🔐 USUÁRIO
   useEffect(() => {
     async function loadUser() {
       const currentUser = await getCurrentUser()
       setUser(currentUser)
       setLoading(false)
     }
-
     loadUser()
   }, [])
 
-  // 📦 CARREGA DADOS
+  // 📦 DADOS
   useEffect(() => {
     if (!user) return
 
@@ -65,7 +64,7 @@ export default function Home() {
     loadData()
   }, [user])
 
-  // 🧮 CALCULA SALDOS (AQUI ESTAVA O ERRO ANTES)
+  // 🧮 CÁLCULO CORRETO
   useEffect(() => {
     if (!user || groups.length === 0) return
 
@@ -74,21 +73,21 @@ export default function Home() {
     const updatedGroups = groups.map(group => {
       const groupTx = transactions.filter(tx => tx.group_id === group.id)
 
-     let paidByMe = 0
-let myShare = 0
+      let paidByMe = 0
+      let myShare = 0
 
-groupTx.forEach(tx => {
-  if (tx.payer_id === user.id) {
-    paidByMe += Number(tx.value)
-  }
+      groupTx.forEach(tx => {
+        if (tx.payer_id === user.id) {
+          paidByMe += Number(tx.value)
+        }
 
-  if (tx.splits && tx.splits['self']) {
-    myShare += Number(tx.splits['self'])
-  }
-})
+        // 🔥 AQUI ESTAVA O ERRO
+        if (tx.splits && tx.splits[user.id]) {
+          myShare += Number(tx.splits[user.id])
+        }
+      })
 
-const balance = paidByMe - myShare
-
+      const balance = paidByMe - myShare
       global += balance
 
       return { ...group, calculatedBalance: balance }
@@ -96,9 +95,8 @@ const balance = paidByMe - myShare
 
     setGroups(updatedGroups)
     setTotalBalance(global)
-  }, [groups.length, transactions, user])
+  }, [transactions, user])
 
-  // ⏳ LOADING
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -107,7 +105,6 @@ const balance = paidByMe - myShare
     )
   }
 
-  // ❌ NÃO LOGADO
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -200,17 +197,6 @@ const balance = paidByMe - myShare
                         <p className="text-sm text-gray-500">
                           {group.participants.length} pessoas
                         </p>
-
-                        <div className="flex -space-x-2 mt-3">
-                          {group.participants.slice(0, 4).map(p => (
-                            <div
-                              key={p.id}
-                              className="w-8 h-8 rounded-full bg-[#5BC5A7] text-white flex items-center justify-center text-xs font-semibold border-2 border-white"
-                            >
-                              {p.name.charAt(0).toUpperCase()}
-                            </div>
-                          ))}
-                        </div>
                       </div>
 
                       <div className="text-right">
