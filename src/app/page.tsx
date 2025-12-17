@@ -74,20 +74,21 @@ export default function Home() {
     const updatedGroups = groups.map(group => {
       const groupTx = transactions.filter(tx => tx.group_id === group.id)
 
-      let paidByMe = 0
-      let myShare = 0
+     let paidByMe = 0
+let myShare = 0
 
-      groupTx.forEach(tx => {
-        if (tx.payer_id === user.id) {
-          paidByMe += Number(tx.value)
-        }
+groupTx.forEach(tx => {
+  if (tx.payer_id === user.id) {
+    paidByMe += Number(tx.value)
+  }
 
-        if (tx.splits && tx.splits[user.id]) {
-          myShare += Number(tx.splits[user.id])
-        }
-      })
+  if (tx.splits && tx.splits['self']) {
+    myShare += Number(tx.splits['self'])
+  }
+})
 
-      const balance = paidByMe - myShare
+const balance = paidByMe - myShare
+
       global += balance
 
       return { ...group, calculatedBalance: balance }
