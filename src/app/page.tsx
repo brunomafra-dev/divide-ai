@@ -81,24 +81,35 @@ export default function Home() {
     const groupsWithBalance = (g || []).map(group => {
       const groupTx = (t || []).filter(tx => tx.group_id === group.id)
 
-      let paidByMe = 0
-      let myShare = 0
+   let paidByMe = 0
+let myShare = 0
 
-      groupTx.forEach(tx => {
-        if (tx.payer_id === user.id) {
-          paidByMe += Number(tx.value)
-        }
+groupTx.forEach(tx => {
+  if (tx.payer_id === user.id) {
+    paidByMe += Number(tx.value)
+  }
 
-        if (tx.splits && tx.splits[user.id]) {
-          myShare += Number(tx.splits[user.id])
+  if (tx.splits) {
+    // caso splits seja objeto
+    if (typeof tx.splits === 'object') {
+      Object.entries(tx.splits).forEach(([key, val]) => {
+        if (String(key) === String(user.id)) {
+          myShare += Number(val)
         }
       })
+    }
 
-      const balance = paidByMe - myShare
-      global += balance
-
-      return { ...group, calculatedBalance: balance }
-    })
+    // caso splits seja array
+    if (Array.isArray(tx.splits)) {
+      const splitValue = tx.splits.find(
+        (s: any) => s.user_id === user.id
+      )
+      if (splitValue) {
+        myShare += Number(splitValue.value)
+      }
+    }
+  }
+})
 
     setGroups(groupsWithBalance)
     setTransactions(t || [])
