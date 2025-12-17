@@ -35,61 +35,78 @@ export default function Home() {
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
 
-useEffect(() => {
-  if (!user) return
+  // 🔐 CARREGA USUÁRIO
+  useEffect(() => {
+    async function loadUser() {
+      const currentUser = await getCurrentUser()
+      setUser(currentUser)
+      setLoading(false)
+    }
 
-  async function load() {
-    setLoading(true)
+    loadUser()
+  }, [])
 
-    const { data: g } = await supabase.from('groups').select('*')
-    const { data: t } = await supabase
-      .from('transactions')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(5)
+  // 📦 CARREGA DADOS
+  useEffect(() => {
+    if (!user) return
 
-    setGroups(g || [])
-    setTransactions(t || [])
-    setLoading(false)
-  }
+    async function loadData() {
+      const { data: g } = await supabase.from('groups').select('*')
+      const { data: t } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5)
 
-  load()
-}, [user])
+      setGroups(g || [])
+      setTransactions(t || [])
+    }
 
+    loadData()
+  }, [user])
 
-function calculateBalances(
-  groups: Group[],
-  transactions: Transaction[],
-  me: string
-) {
-  let global = 0
+  // 🧮 CALCULA SALDOS (AQUI ESTAVA O ERRO ANTES)
+  useEffect(() => {
+    if (!user || groups.length === 0) return
 
-  const updated = groups.map(group => {
-    const groupTx = transactions.filter(tx => tx.group_id === group.id)
+    let global = 0
 
-    let paidByMe = 0
-    let myShare = 0
+    const updatedGroups = groups.map(group => {
+      const groupTx = transactions.filter(tx => tx.group_id === group.id)
 
-    groupTx.forEach(tx => {
-      if (tx.payer_id === me) {
-        paidByMe += Number(tx.value)
-      }
+      let paidByMe = 0
+      let myShare = 0
 
-      if (tx.splits && tx.splits[me]) {
-        myShare += Number(tx.splits[me])
-      }
+      groupTx.forEach(tx => {
+        if (tx.payer_id === user.id) {
+          paidByMe += Number(tx.value)
+        }
+
+        if (tx.splits && tx.splits[user.id]) {
+          myShare += Number(tx.splits[user.id])
+        }
+      })
+
+      const balance = paidByMe - myShare
+      global += balance
+
+      return { ...group, calculatedBalance: balance }
     })
 
-    const balance = paidByMe - myShare
-    global += balance
+    setGroups(updatedGroups)
+    setTotalBalance(global)
+  }, [groups.length, transactions, user])
 
-    return { ...group, calculatedBalance: balance }
-  })
+  // ⏳ LOADING
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Carregando...
+      </div>
+    )
+  }
 
-  setTotalBalance(global)
-  return updated
-}
-
+  // ❌ NÃO LOGADO
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -125,7 +142,7 @@ function calculateBalances(
             </Link>
           </div>
 
-          {/* SALDO */}
+          {/* SALDO TOTAL */}
           <div className="mt-8 text-center">
             <p className="text-sm opacity-90">Saldo total</p>
 
