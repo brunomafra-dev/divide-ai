@@ -35,37 +35,28 @@ export default function Home() {
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    async function load() {
-      const currentUser = await getCurrentUser()
+useEffect(() => {
+  if (!user) return
 
-      if (!currentUser) {
-        setLoading(false)
-        return
-      }
+  async function load() {
+    setLoading(true)
 
-      setUser(currentUser)
+    const { data: g } = await supabase.from('groups').select('*')
+    const { data: t } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(5)
 
-      const { data: g } = await supabase.from('groups').select('*')
-      const { data: t } = await supabase
-        .from('transactions')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5)
+    setGroups(g || [])
+    setTransactions(t || [])
+    setLoading(false)
+  }
 
-      const groupsWithBalance = calculateBalances(
-        g || [],
-        t || [],
-        currentUser.id
-      )
+  load()
+}, [user])
 
-      setGroups(groupsWithBalance)
-      setTransactions(t || [])
-      setLoading(false)
-    }
 
-    load()
-  }, [])
 function calculateBalances(
   groups: Group[],
   transactions: Transaction[],
