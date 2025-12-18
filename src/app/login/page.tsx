@@ -1,15 +1,35 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
   const router = useRouter()
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // 🔍 Verifica se já está logado
+  useEffect(() => {
+    async function checkSession() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (session) {
+        router.replace('/')
+        return
+      }
+
+      setCheckingSession(false)
+    }
+
+    checkSession()
+  }, [router])
 
   async function handleLogin() {
     setLoading(true)
@@ -26,7 +46,16 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/')
+    router.replace('/')
+  }
+
+  // ⏳ Enquanto checa sessão
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Carregando...
+      </div>
+    )
   }
 
   return (
