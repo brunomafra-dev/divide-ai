@@ -71,6 +71,11 @@ export default function Settings() {
           </div>
         </div>
 
+        {/* Ad Space Placeholder */}
+        <div className="bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300">
+          <p className="text-xs text-gray-500">Espaço reservado para anúncio</p>
+        </div>
+
         {/* Sair */}
         <button className="w-full bg-white rounded-xl shadow-sm px-4 py-3 text-red-600 font-medium hover:bg-red-50 transition-colors">
           Sair da conta

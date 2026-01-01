@@ -48,8 +48,8 @@ export default function Activity() {
           {activities.map((activity) => (
             <div key={activity.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Clock className="w-5 h-5 text-gray-500" />
+                <div className="w-10 h-10 bg-[#5BC5A7]/10 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-5 h-5 text-[#5BC5A7]" />
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-800">{activity.description}</p>
@@ -61,6 +61,13 @@ export default function Activity() {
           ))}
         </div>
       </main>
+
+      {/* Ad Space Placeholder */}
+      <div className="max-w-4xl mx-auto px-4 py-4">
+        <div className="bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300">
+          <p className="text-xs text-gray-500">Espaço reservado para anúncio</p>
+        </div>
+      </div>
     </div>
   )
 }
