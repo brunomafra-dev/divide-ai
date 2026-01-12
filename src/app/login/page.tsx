@@ -27,13 +27,15 @@ export default function LoginPage() {
 
       if (error) throw error
 
-      if (data.user) {
-        // Força refresh da página para atualizar o middleware
-        window.location.href = '/'
+      if (data.session) {
+        // Aguarda um momento para garantir que a sessão foi estabelecida
+        await new Promise(resolve => setTimeout(resolve, 500))
+        // Usa router.push com refresh para atualizar o middleware
+        router.push('/')
+        router.refresh()
       }
     } catch (error: any) {
       setError(error.message || 'Erro ao fazer login')
-    } finally {
       setLoading(false)
     }
   }

@@ -60,16 +60,20 @@ export default function SignUpPage() {
 
       if (error) throw error
 
-      if (data.user) {
+      if (data.session) {
+        // Se a sessão foi criada imediatamente (confirmação de email desabilitada)
         setSuccess(true)
-        // Após cadastro bem-sucedido, redireciona para a home
-        setTimeout(() => {
-          window.location.href = '/'
-        }, 1500)
+        await new Promise(resolve => setTimeout(resolve, 500))
+        router.push('/')
+        router.refresh()
+      } else if (data.user) {
+        // Se precisa confirmar email
+        setSuccess(true)
+        setError('Verifique seu email para confirmar o cadastro antes de fazer login.')
+        setLoading(false)
       }
     } catch (error: any) {
       setError(error.message || 'Erro ao criar conta')
-    } finally {
       setLoading(false)
     }
   }
@@ -93,7 +97,7 @@ export default function SignUpPage() {
             </div>
           )}
 
-          {success && (
+          {success && !error && (
             <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4 text-sm flex items-center gap-2">
               <Check className="w-5 h-5" />
               <span>Conta criada com sucesso! Entrando...</span>
