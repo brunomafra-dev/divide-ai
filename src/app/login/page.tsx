@@ -28,9 +28,7 @@ export default function LoginPage() {
       if (error) throw error
 
       if (data.session) {
-        // Aguarda um momento para garantir que a sessão foi estabelecida
-        await new Promise(resolve => setTimeout(resolve, 500))
-        // Usa router.push com refresh para atualizar o middleware
+        // Redireciona usando router.push - o middleware vai reconhecer a sessão nos cookies
         router.push('/')
         router.refresh()
       }

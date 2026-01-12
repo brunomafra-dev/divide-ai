@@ -63,7 +63,8 @@ export default function SignUpPage() {
       if (data.session) {
         // Se a sessão foi criada imediatamente (confirmação de email desabilitada)
         setSuccess(true)
-        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // Redireciona usando router.push - o middleware vai reconhecer a sessão nos cookies
         router.push('/')
         router.refresh()
       } else if (data.user) {
