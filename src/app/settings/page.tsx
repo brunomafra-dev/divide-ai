@@ -2,10 +2,11 @@
 
 import { ArrowLeft, Crown } from 'lucide-react'
 import Link from 'next/link'
+import BottomNav from '@/components/ui/bottom-nav'
 
 export default function Settings() {
   return (
-    <div className="min-h-screen bg-[#F7F7F7]">
+    <div className="min-h-screen bg-[#F7F7F7] pb-20">
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
@@ -81,6 +82,9 @@ export default function Settings() {
           Sair da conta
         </button>
       </main>
+
+      {/* Bottom Navigation */}
+      <BottomNav />
     </div>
   )
 }

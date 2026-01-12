@@ -2,6 +2,7 @@
 
 import { ArrowLeft, Clock } from 'lucide-react'
 import Link from 'next/link'
+import BottomNav from '@/components/ui/bottom-nav'
 
 export default function Activity() {
   const activities = [
@@ -68,6 +69,9 @@ export default function Activity() {
           <p className="text-xs text-gray-500">Espaço reservado para anúncio</p>
         </div>
       </div>
+
+      {/* Bottom Navigation */}
+      <BottomNav />
     </div>
   )
 }

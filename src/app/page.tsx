@@ -3,6 +3,13 @@
 import { Plus, User, TrendingUp, TrendingDown } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import BottomNav from '@/components/ui/bottom-nav'
+
+interface Member {
+  id: string
+  name: string
+  avatar?: string
+}
 
 interface Group {
   id: string
@@ -10,6 +17,7 @@ interface Group {
   totalSpent: number
   balance: number
   participants: number
+  members?: Member[]
 }
 
 export default function Home() {
@@ -27,7 +35,7 @@ export default function Home() {
       const total = parsedGroups.reduce((acc: number, group: Group) => acc + group.balance, 0)
       setTotalBalance(total)
     } else {
-      // Dados de exemplo
+      // Dados de exemplo com membros
       const mockGroups = [
         {
           id: '1',
@@ -35,6 +43,12 @@ export default function Home() {
           totalSpent: 1200,
           balance: -150,
           participants: 4,
+          members: [
+            { id: '1', name: 'João Silva' },
+            { id: '2', name: 'Maria Santos' },
+            { id: '3', name: 'Pedro Costa' },
+            { id: '4', name: 'Ana Lima' },
+          ],
         },
         {
           id: '2',
@@ -42,6 +56,11 @@ export default function Home() {
           totalSpent: 800,
           balance: 200,
           participants: 3,
+          members: [
+            { id: '1', name: 'Carlos Mendes' },
+            { id: '2', name: 'Beatriz Souza' },
+            { id: '3', name: 'Rafael Alves' },
+          ],
         },
         {
           id: '3',
@@ -49,6 +68,13 @@ export default function Home() {
           totalSpent: 300,
           balance: 0,
           participants: 5,
+          members: [
+            { id: '1', name: 'Lucas Ferreira' },
+            { id: '2', name: 'Juliana Rocha' },
+            { id: '3', name: 'Thiago Martins' },
+            { id: '4', name: 'Camila Dias' },
+            { id: '5', name: 'Felipe Gomes' },
+          ],
         },
       ]
       setGroups(mockGroups)
@@ -59,8 +85,49 @@ export default function Home() {
     }
   }, [])
 
+  const getInitials = (name: string) => {
+    const parts = name.split(' ')
+    if (parts.length >= 2) {
+      return parts[0][0] + parts[1][0]
+    }
+    return name.substring(0, 2)
+  }
+
+  const renderMemberAvatars = (members?: Member[], maxDisplay: number = 4) => {
+    if (!members || members.length === 0) return null
+
+    const displayMembers = members.slice(0, maxDisplay)
+    const remaining = members.length - maxDisplay
+
+    return (
+      <div className="flex items-center -space-x-2">
+        {displayMembers.map((member, index) => (
+          <div
+            key={member.id}
+            className="w-8 h-8 rounded-full bg-gradient-to-br from-[#5BC5A7] to-[#4AB396] flex items-center justify-center text-white text-xs font-medium border-2 border-white"
+            style={{ zIndex: displayMembers.length - index }}
+          >
+            {member.avatar ? (
+              <img src={member.avatar} alt={member.name} className="w-full h-full rounded-full object-cover" />
+            ) : (
+              getInitials(member.name)
+            )}
+          </div>
+        ))}
+        {remaining > 0 && (
+          <div
+            className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-medium border-2 border-white"
+            style={{ zIndex: 0 }}
+          >
+            +{remaining}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-[#F7F7F7]">
+    <div className="min-h-screen bg-[#F7F7F7] pb-20">
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
@@ -136,7 +203,7 @@ export default function Home() {
               {groups.map((group) => (
                 <Link key={group.id} href={`/group/${group.id}`}>
                   <div className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer border border-gray-100">
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start mb-3">
                       <div className="flex-1">
                         <h3 className="text-lg font-medium text-gray-800 mb-1">{group.name}</h3>
                         <div className="flex items-center gap-4 text-sm text-gray-600">
@@ -161,6 +228,10 @@ export default function Home() {
                         )}
                       </div>
                     </div>
+                    {/* Prévia de Membros */}
+                    <div className="pt-3 border-t border-gray-100">
+                      {renderMemberAvatars(group.members)}
+                    </div>
                   </div>
                 </Link>
               ))}
@@ -177,43 +248,7 @@ export default function Home() {
       </Link>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-area-bottom">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex justify-around items-center">
-          <Link href="/" className="flex flex-col items-center gap-1 text-[#5BC5A7]">
-            <div className="w-6 h-6 flex items-center justify-center">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
-              </svg>
-            </div>
-            <span className="text-xs font-medium">Grupos</span>
-          </Link>
-          <Link href="/activity" className="flex flex-col items-center gap-1 text-gray-400 hover:text-[#5BC5A7]">
-            <div className="w-6 h-6 flex items-center justify-center">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <span className="text-xs">Atividade</span>
-          </Link>
-          <Link href="/payments" className="flex flex-col items-center gap-1 text-gray-400 hover:text-[#5BC5A7]">
-            <div className="w-6 h-6 flex items-center justify-center">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            </div>
-            <span className="text-xs">Pagamentos</span>
-          </Link>
-          <Link href="/settings" className="flex flex-col items-center gap-1 text-gray-400 hover:text-[#5BC5A7]">
-            <div className="w-6 h-6 flex items-center justify-center">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </div>
-            <span className="text-xs">Conta</span>
-          </Link>
-        </div>
-      </nav>
+      <BottomNav />
     </div>
   )
 }

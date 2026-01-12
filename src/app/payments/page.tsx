@@ -3,6 +3,7 @@
 import { ArrowLeft, CheckCircle, Clock, TrendingUp, TrendingDown } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import BottomNav from '@/components/ui/bottom-nav'
 
 interface Payment {
   id: string
@@ -227,6 +228,9 @@ export default function Payments() {
           <p className="text-xs text-gray-500">Espaço reservado para anúncio</p>
         </div>
       </div>
+
+      {/* Bottom Navigation */}
+      <BottomNav />
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import { ArrowLeft, User, Mail, Calendar, Crown } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
+import BottomNav from '@/components/BottomNav'
 
 export default function Profile() {
   const [isPremium] = useState(false)
@@ -101,6 +102,9 @@ export default function Profile() {
           <p className="text-xs text-gray-500">Espaço reservado para anúncio</p>
         </div>
       </main>
+
+      {/* Bottom Navigation */}
+      <BottomNav />
     </div>
   )
 }
