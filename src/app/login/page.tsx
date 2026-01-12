@@ -28,7 +28,8 @@ export default function LoginPage() {
       if (error) throw error
 
       if (data.user) {
-        router.push('/')
+        // Força refresh da página para atualizar o middleware
+        window.location.href = '/'
       }
     } catch (error: any) {
       setError(error.message || 'Erro ao fazer login')

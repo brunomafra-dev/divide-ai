@@ -62,9 +62,10 @@ export default function SignUpPage() {
 
       if (data.user) {
         setSuccess(true)
+        // Após cadastro bem-sucedido, redireciona para a home
         setTimeout(() => {
-          router.push('/login')
-        }, 2000)
+          window.location.href = '/'
+        }, 1500)
       }
     } catch (error: any) {
       setError(error.message || 'Erro ao criar conta')
@@ -95,7 +96,7 @@ export default function SignUpPage() {
           {success && (
             <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4 text-sm flex items-center gap-2">
               <Check className="w-5 h-5" />
-              <span>Conta criada com sucesso! Redirecionando...</span>
+              <span>Conta criada com sucesso! Entrando...</span>
             </div>
           )}
 
