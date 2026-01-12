@@ -1,110 +1,148 @@
 'use client'
 
-import { ArrowLeft, User, Mail, Calendar, Crown } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, LogOut, User, Mail } from 'lucide-react'
 import Link from 'next/link'
-import { useState } from 'react'
-import BottomNav from '@/components/BottomNav'
 
-export default function Profile() {
-  const [isPremium] = useState(false)
+interface UserProfile {
+  email: string
+  full_name?: string
+  avatar_url?: string
+}
+
+export default function ProfilePage() {
+  const router = useRouter()
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadProfile()
+  }, [])
+
+  const loadProfile = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user) {
+        setProfile({
+          email: user.email || '',
+          full_name: user.user_metadata?.full_name || '',
+          avatar_url: user.user_metadata?.avatar_url || '',
+        })
+      }
+    } catch (error) {
+      console.error('Erro ao carregar perfil:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut()
+      router.push('/login')
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error)
+    }
+  }
+
+  const getInitials = (name: string) => {
+    if (!name) return 'U'
+    const parts = name.split(' ')
+    if (parts.length >= 2) {
+      return parts[0][0] + parts[1][0]
+    }
+    return name.substring(0, 2)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-[#5BC5A7] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] pb-20">
+    <div className="min-h-screen bg-[#F7F7F7]">
       {/* Header */}
       <header className="bg-white shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-4">
           <Link href="/">
-            <button className="text-gray-600 hover:text-gray-800">
-              <ArrowLeft className="w-6 h-6" />
+            <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <ArrowLeft className="w-6 h-6 text-gray-700" />
             </button>
           </Link>
-          <h1 className="text-lg font-semibold text-gray-800">Perfil</h1>
-          <button className="text-[#5BC5A7] font-medium hover:text-[#4AB396]">
-            Editar
-          </button>
+          <h1 className="text-xl font-bold text-gray-800">Perfil</h1>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Avatar e Nome */}
-        <div className="bg-white rounded-xl p-6 shadow-sm text-center">
-          <div className="w-24 h-24 bg-gradient-to-br from-[#5BC5A7] to-[#4AB396] rounded-full flex items-center justify-center mx-auto mb-4">
-            <User className="w-12 h-12 text-white" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-1">Você</h2>
-          <p className="text-gray-600">Membro desde 2024</p>
-          {isPremium && (
-            <div className="inline-flex items-center gap-1 mt-2 bg-gradient-to-r from-[#5BC5A7] to-[#4AB396] text-white px-3 py-1 rounded-full text-xs font-medium">
-              <Crown className="w-3 h-3" />
-              Premium
+      <main className="max-w-4xl mx-auto px-4 py-6">
+        {/* Profile Card */}
+        <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
+          {/* Avatar */}
+          <div className="flex flex-col items-center mb-6">
+            <div className="w-24 h-24 bg-gradient-to-br from-[#5BC5A7] to-[#4AB396] rounded-full flex items-center justify-center text-white text-3xl font-bold mb-4">
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt={profile.full_name || 'Avatar'}
+                  className="w-full h-full rounded-full object-cover"
+                />
+              ) : (
+                getInitials(profile?.full_name || profile?.email || 'U')
+              )}
             </div>
-          )}
-        </div>
-
-        {/* Upgrade Premium (se não for premium) */}
-        {!isPremium && (
-          <div className="bg-gradient-to-br from-[#5BC5A7] to-[#4AB396] rounded-xl p-6 shadow-lg text-white">
-            <div className="flex items-center gap-3 mb-3">
-              <Crown className="w-8 h-8" />
-              <h2 className="text-xl font-bold">Faça Upgrade para Premium</h2>
-            </div>
-            <p className="text-white/90 mb-4 text-sm">
-              Remova anúncios, tenha grupos ilimitados e exporte relatórios em PDF
-            </p>
-            <button className="w-full bg-white text-[#5BC5A7] py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors">
-              Assinar Premium - R$ 9,90/mês
-            </button>
+            <h2 className="text-2xl font-bold text-gray-800 mb-1">
+              {profile?.full_name || 'Usuário'}
+            </h2>
+            <p className="text-gray-600">{profile?.email}</p>
           </div>
-        )}
 
-        {/* Informações */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <h3 className="text-sm font-medium text-gray-700 px-4 py-3 bg-gray-50">Informações</h3>
-          <div className="divide-y divide-gray-100">
-            <div className="px-4 py-3 flex items-center gap-3">
-              <Mail className="w-5 h-5 text-gray-400" />
-              <div>
-                <p className="text-xs text-gray-500">Email</p>
-                <p className="text-sm text-gray-800">voce@email.com</p>
+          {/* Info Cards */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+              <User className="w-5 h-5 text-[#5BC5A7]" />
+              <div className="flex-1">
+                <p className="text-sm text-gray-600">Nome</p>
+                <p className="font-medium text-gray-800">
+                  {profile?.full_name || 'Não informado'}
+                </p>
               </div>
             </div>
-            <div className="px-4 py-3 flex items-center gap-3">
-              <Calendar className="w-5 h-5 text-gray-400" />
-              <div>
-                <p className="text-xs text-gray-500">Membro desde</p>
-                <p className="text-sm text-gray-800">Janeiro de 2024</p>
+
+            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+              <Mail className="w-5 h-5 text-[#5BC5A7]" />
+              <div className="flex-1">
+                <p className="text-sm text-gray-600">E-mail</p>
+                <p className="font-medium text-gray-800">{profile?.email}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Estatísticas */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <h3 className="text-sm font-medium text-gray-700 px-4 py-3 bg-gray-50">Estatísticas</h3>
-          <div className="grid grid-cols-3 divide-x divide-gray-100">
-            <div className="px-4 py-4 text-center">
-              <p className="text-2xl font-bold text-[#5BC5A7]">3</p>
-              <p className="text-xs text-gray-600 mt-1">Grupos</p>
-            </div>
-            <div className="px-4 py-4 text-center">
-              <p className="text-2xl font-bold text-[#5BC5A7]">12</p>
-              <p className="text-xs text-gray-600 mt-1">Gastos</p>
-            </div>
-            <div className="px-4 py-4 text-center">
-              <p className="text-2xl font-bold text-[#5BC5A7]">8</p>
-              <p className="text-xs text-gray-600 mt-1">Amigos</p>
-            </div>
-          </div>
-        </div>
+        {/* Logout Button */}
+        <button
+          onClick={handleLogout}
+          className="w-full bg-red-500 text-white py-3 rounded-lg font-medium hover:bg-red-600 transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+        >
+          <LogOut className="w-5 h-5" />
+          Sair da conta
+        </button>
 
-        {/* Ad Space Placeholder */}
-        <div className="bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300">
-          <p className="text-xs text-gray-500">Espaço reservado para anúncio</p>
+        {/* App Info */}
+        <div className="mt-8 text-center text-gray-500 text-sm">
+          <p>Divide Aí v1.0</p>
+          <p className="mt-1">Divida gastos com facilidade</p>
         </div>
       </main>
-
-      {/* Bottom Navigation */}
-      <BottomNav />
     </div>
   )
 }
