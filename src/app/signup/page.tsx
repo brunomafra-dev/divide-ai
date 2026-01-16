@@ -2,12 +2,10 @@
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Eye, EyeOff, Mail, Lock, User, Check } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
 
 export default function SignUpPage() {
-  const router = useRouter()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -16,33 +14,20 @@ export default function SignUpPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
-
-  const validatePassword = (pass: string) => {
-    return pass.length >= 6
-  }
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
-    setSuccess(false)
-
-    // Validações
-    if (!name.trim()) {
-      setError('Por favor, insira seu nome')
-      setLoading(false)
-      return
-    }
-
-    if (!validatePassword(password)) {
-      setError('A senha deve ter no mínimo 6 caracteres')
-      setLoading(false)
-      return
-    }
 
     if (password !== confirmPassword) {
       setError('As senhas não coincidem')
+      setLoading(false)
+      return
+    }
+
+    if (password.length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres')
       setLoading(false)
       return
     }
@@ -53,7 +38,7 @@ export default function SignUpPage() {
         password,
         options: {
           data: {
-            full_name: name,
+            name: name,
           },
         },
       })
@@ -61,16 +46,14 @@ export default function SignUpPage() {
       if (error) throw error
 
       if (data.session) {
-        // Se a sessão foi criada imediatamente (confirmação de email desabilitada)
-        setSuccess(true)
+        // Aguarda um momento para garantir que os cookies sejam salvos
+        await new Promise(resolve => setTimeout(resolve, 100))
         
-        // Redireciona usando router.push - o middleware vai reconhecer a sessão nos cookies
-        router.push('/')
-        router.refresh()
-      } else if (data.user) {
-        // Se precisa confirmar email
-        setSuccess(true)
-        setError('Verifique seu email para confirmar o cadastro antes de fazer login.')
+        // Força recarregamento completo da página para o middleware reconhecer a sessão
+        window.location.href = '/'
+      } else {
+        // Se não há sessão, significa que precisa confirmar email
+        setError('Cadastro realizado! Verifique seu email para confirmar a conta.')
         setLoading(false)
       }
     } catch (error: any) {
@@ -85,31 +68,24 @@ export default function SignUpPage() {
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">Divide Aí</h1>
-          <p className="text-white/90 text-lg">Crie sua conta gratuitamente</p>
+          <p className="text-white/90 text-lg">Divida gastos com facilidade</p>
         </div>
 
         {/* Sign Up Card */}
         <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Cadastro</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Criar Conta</h2>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+            <div className={`${error.includes('realizado') ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'} border px-4 py-3 rounded-lg mb-4 text-sm`}>
               {error}
             </div>
           )}
 
-          {success && !error && (
-            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4 text-sm flex items-center gap-2">
-              <Check className="w-5 h-5" />
-              <span>Conta criada com sucesso! Entrando...</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSignUp} className="space-y-4">
+          <form onSubmit={handleSignUp} className="space-y-5">
             {/* Name Input */}
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                Nome completo
+                Nome
               </label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -118,7 +94,7 @@ export default function SignUpPage() {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="João Silva"
+                  placeholder="Seu nome"
                   required
                   className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5BC5A7] focus:border-transparent outline-none transition-all"
                 />
@@ -168,13 +144,12 @@ export default function SignUpPage() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">Mínimo de 6 caracteres</p>
             </div>
 
             {/* Confirm Password Input */}
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                Confirmar senha
+                Confirmar Senha
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -200,10 +175,10 @@ export default function SignUpPage() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || success}
-              className="w-full bg-[#5BC5A7] text-white py-3 rounded-lg font-medium hover:bg-[#4AB396] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl mt-6"
+              disabled={loading}
+              className="w-full bg-[#5BC5A7] text-white py-3 rounded-lg font-medium hover:bg-[#4AB396] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
             >
-              {loading ? 'Criando conta...' : success ? 'Conta criada!' : 'Criar conta'}
+              {loading ? 'Criando conta...' : 'Criar Conta'}
             </button>
           </form>
 
@@ -230,7 +205,7 @@ export default function SignUpPage() {
 
         {/* Footer */}
         <p className="text-center text-white/80 text-sm mt-6">
-          Ao criar uma conta, você concorda com nossos Termos de Uso
+          Ao continuar, você concorda com nossos Termos de Uso
         </p>
       </div>
     </div>

@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
 
 export default function LoginPage() {
@@ -14,26 +14,45 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Verificar se já está logado ao carregar a página
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        router.replace('/')
+      }
+    }
+    checkSession()
+  }, [router])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) throw error
+      if (signInError) throw signInError
 
-      if (data.session) {
-        // Redireciona usando router.push - o middleware vai reconhecer a sessão nos cookies
-        router.push('/')
-        router.refresh()
+      // Validar que a sessão foi criada
+      const { data: sessionData } = await supabase.auth.getSession()
+      
+      if (!sessionData.session) {
+        throw new Error('Sessão não foi criada. Tente novamente.')
       }
+
+      // Redirecionar para home
+      router.replace('/')
+      router.refresh()
+
     } catch (error: any) {
-      setError(error.message || 'Erro ao fazer login')
+      console.error('Erro ao fazer login:', error)
+      setError(error.message || 'Erro ao fazer login. Tente novamente.')
+    } finally {
       setLoading(false)
     }
   }

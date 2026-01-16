@@ -3,6 +3,8 @@
 import { Plus, User, TrendingUp, TrendingDown } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/ui/bottom-nav'
 
 interface Member {
@@ -21,10 +23,30 @@ interface Group {
 }
 
 export default function Home() {
+  const router = useRouter()
   const [groups, setGroups] = useState<Group[]>([])
   const [totalBalance, setTotalBalance] = useState(0)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Verificar sessão ao carregar a página
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        router.replace('/login')
+        return
+      }
+
+      setLoading(false)
+    }
+
+    checkSession()
+  }, [router])
+
+  useEffect(() => {
+    if (loading) return
+
     // Carregar grupos do localStorage
     const savedGroups = localStorage.getItem('divideai_groups')
     if (savedGroups) {
@@ -83,7 +105,7 @@ export default function Home() {
       const total = mockGroups.reduce((acc, group) => acc + group.balance, 0)
       setTotalBalance(total)
     }
-  }, [])
+  }, [loading])
 
   const getInitials = (name: string) => {
     const parts = name.split(' ')
@@ -122,6 +144,15 @@ export default function Home() {
             +{remaining}
           </div>
         )}
+      </div>
+    )
+  }
+
+  // Mostrar loading enquanto verifica sessão
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
+        <div className="text-gray-600 text-lg">Carregando...</div>
       </div>
     )
   }
