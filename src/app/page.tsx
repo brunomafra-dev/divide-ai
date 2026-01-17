@@ -78,15 +78,15 @@ export default function Home() {
           </div>
         ))}
 
-        {remaining > 0 && (
-          <div
-            className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-medium border-2 border-white"
-            style={{ zIndex: 0 }}
-            title={+${remaining}}
-          >
-            +{remaining}
-          </div>
-        )}
+     {remaining > 0 && (
+  <div
+    className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-medium border-2 border-white"
+    style={{ zIndex: 0 }}
+    title={`+${remaining}`}
+  >
+    +{remaining}
+  </div>
+)}
       </div>
     )
   }
