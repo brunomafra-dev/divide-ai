@@ -13,7 +13,23 @@ interface Member {
   avatar?: string
 }
 
-interface Group {
+interface GroupRow {
+  id: string
+  name: string
+  // Pode vir como jsonb (array) no Supabase:
+  participants?: any
+}
+
+interface TransactionRow {
+  id: string
+  group_id: string
+  value: number
+  payer_id: string
+  // Pode vir como jsonb object: { "self": 55, "<userId>": 20, ... }
+  splits?: any
+}
+
+interface GroupUI {
   id: string
   name: string
   totalSpent: number
@@ -24,95 +40,14 @@ interface Group {
 
 export default function Home() {
   const router = useRouter()
-  const [groups, setGroups] = useState<Group[]>([])
+  const [groups, setGroups] = useState<GroupUI[]>([])
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    // Verificar sessão ao carregar a página
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (!session) {
-        router.replace('/login')
-        return
-      }
-
-      setLoading(false)
-    }
-
-    checkSession()
-  }, [router])
-
-  useEffect(() => {
-    if (loading) return
-
-    // Carregar grupos do localStorage
-    const savedGroups = localStorage.getItem('divideai_groups')
-    if (savedGroups) {
-      const parsedGroups = JSON.parse(savedGroups)
-      setGroups(parsedGroups)
-      
-      // Calcular saldo total
-      const total = parsedGroups.reduce((acc: number, group: Group) => acc + group.balance, 0)
-      setTotalBalance(total)
-    } else {
-      // Dados de exemplo com membros
-      const mockGroups = [
-        {
-          id: '1',
-          name: 'Viagem para Praia',
-          totalSpent: 1200,
-          balance: -150,
-          participants: 4,
-          members: [
-            { id: '1', name: 'João Silva' },
-            { id: '2', name: 'Maria Santos' },
-            { id: '3', name: 'Pedro Costa' },
-            { id: '4', name: 'Ana Lima' },
-          ],
-        },
-        {
-          id: '2',
-          name: 'Casa dos Pais',
-          totalSpent: 800,
-          balance: 200,
-          participants: 3,
-          members: [
-            { id: '1', name: 'Carlos Mendes' },
-            { id: '2', name: 'Beatriz Souza' },
-            { id: '3', name: 'Rafael Alves' },
-          ],
-        },
-        {
-          id: '3',
-          name: 'Churrasco Domingo',
-          totalSpent: 300,
-          balance: 0,
-          participants: 5,
-          members: [
-            { id: '1', name: 'Lucas Ferreira' },
-            { id: '2', name: 'Juliana Rocha' },
-            { id: '3', name: 'Thiago Martins' },
-            { id: '4', name: 'Camila Dias' },
-            { id: '5', name: 'Felipe Gomes' },
-          ],
-        },
-      ]
-      setGroups(mockGroups)
-      localStorage.setItem('divideai_groups', JSON.stringify(mockGroups))
-      
-      const total = mockGroups.reduce((acc, group) => acc + group.balance, 0)
-      setTotalBalance(total)
-    }
-  }, [loading])
-
   const getInitials = (name: string) => {
-    const parts = name.split(' ')
-    if (parts.length >= 2) {
-      return parts[0][0] + parts[1][0]
-    }
-    return name.substring(0, 2)
+    const parts = String(name || '').trim().split(' ').filter(Boolean)
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+    return String(name || '').substring(0, 2).toUpperCase()
   }
 
   const renderMemberAvatars = (members?: Member[], maxDisplay: number = 4) => {
@@ -128,18 +63,26 @@ export default function Home() {
             key={member.id}
             className="w-8 h-8 rounded-full bg-gradient-to-br from-[#5BC5A7] to-[#4AB396] flex items-center justify-center text-white text-xs font-medium border-2 border-white"
             style={{ zIndex: displayMembers.length - index }}
+            title={member.name}
           >
             {member.avatar ? (
-              <img src={member.avatar} alt={member.name} className="w-full h-full rounded-full object-cover" />
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={member.avatar}
+                alt={member.name}
+                className="w-full h-full rounded-full object-cover"
+              />
             ) : (
               getInitials(member.name)
             )}
           </div>
         ))}
+
         {remaining > 0 && (
           <div
             className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-medium border-2 border-white"
             style={{ zIndex: 0 }}
+            title={+${remaining}}
           >
             +{remaining}
           </div>
@@ -148,7 +91,126 @@ export default function Home() {
     )
   }
 
-  // Mostrar loading enquanto verifica sessão
+  useEffect(() => {
+    const run = async () => {
+      setLoading(true)
+
+      // ✅ 1) Sessão
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        router.replace('/login')
+        return
+      }
+
+      const myId = session.user.id
+
+      // ✅ 2) Limpa mocks antigos do localStorage (pra matar os fantasmas de vez)
+      try {
+        localStorage.removeItem('divideai_groups')
+      } catch {}
+
+      // ✅ 3) Carrega grupos
+      const { data: groupRows, error: gErr } = await supabase
+        .from('groups')
+        .select('id,name,participants')
+
+      if (gErr) {
+        console.error('Erro ao carregar groups:', gErr.message)
+        setGroups([])
+        setTotalBalance(0)
+        setLoading(false)
+        return
+      }
+
+      const safeGroups: GroupRow[] = (groupRows as any) || []
+
+      // ✅ 4) Carrega transações (para calcular totalSpent e balance)
+      // Se teu app tiver MUITA transação, depois otimizamos por group_id IN (...)
+      const { data: txRows, error: tErr } = await supabase
+        .from('transactions')
+        .select('id,group_id,value,payer_id,splits')
+
+      if (tErr) {
+        console.error('Erro ao carregar transactions:', tErr.message)
+      }
+
+      const safeTx: TransactionRow[] = ((txRows as any) || []).map((t: any) => ({
+        ...t,
+        value: Number(t.value) || 0,
+      }))
+
+      // ✅ 5) Monta UI + calcula saldos
+      let global = 0
+
+      const uiGroups: GroupUI[] = safeGroups.map((g) => {
+        const groupTx = safeTx.filter((tx) => tx.group_id === g.id)
+
+        const totalSpent = groupTx.reduce((acc, tx) => acc + (Number(tx.value) || 0), 0)
+
+        // participants pode ser:
+        // - array de objetos [{id,name}]
+        // - array de ids
+        // - null
+        const participantsArr: any[] = Array.isArray(g.participants) ? g.participants : []
+        const members: Member[] = participantsArr
+          .map((p: any) => {
+            if (!p) return null
+            if (typeof p === 'string') return { id: p, name: p } // fallback tosco
+            return {
+              id: String(p.id ?? p.user_id ?? p.uid ?? ''),
+              name: String(p.name ?? p.email ?? 'Usuário'),
+              avatar: p.avatar ?? p.photo_url ?? undefined,
+            }
+          })
+          .filter(Boolean) as Member[]
+
+        const participantsCount = members.length || participantsArr.length || 0
+
+        let paidByMe = 0
+        let myShare = 0
+
+        for (const tx of groupTx) {
+          if (String(tx.payer_id) === String(myId)) {
+            paidByMe += Number(tx.value) || 0
+          }
+
+          const splits = tx.splits
+
+          // splits no teu histórico apareceu como { "self": 55, "<uuid>": 125 ...}
+          // então a prioridade correta é:
+          // 1) se existir splits[myId]
+          // 2) senão, se existir splits.self (caso você esteja gravando self como "você")
+          if (splits && typeof splits === 'object' && !Array.isArray(splits)) {
+            if (splits[myId] != null) myShare += Number(splits[myId]) || 0
+            else if (splits.self != null) myShare += Number(splits.self) || 0
+          }
+        }
+
+        const balance = paidByMe - myShare
+        global += balance
+
+        return {
+          id: g.id,
+          name: g.name,
+          totalSpent,
+          balance,
+          participants: participantsCount,
+          members,
+        }
+      })
+
+      setGroups(uiGroups)
+      setTotalBalance(global)
+      setLoading(false)
+    }
+
+    run()
+  }, [router])
+
+  // Loading
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
@@ -180,19 +242,29 @@ export default function Home() {
               {totalBalance === 0 ? (
                 <>
                   <p className="text-3xl font-bold text-gray-800">R$ 0,00</p>
-                  <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">zerado</span>
+                  <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                    zerado
+                  </span>
                 </>
               ) : totalBalance > 0 ? (
                 <>
                   <TrendingUp className="w-6 h-6 text-[#5BC5A7]" />
-                  <p className="text-3xl font-bold text-[#5BC5A7]">R$ {totalBalance.toFixed(2)}</p>
-                  <span className="text-sm text-[#5BC5A7] bg-green-50 px-3 py-1 rounded-full">te devem</span>
+                  <p className="text-3xl font-bold text-[#5BC5A7]">
+                    R$ {totalBalance.toFixed(2)}
+                  </p>
+                  <span className="text-sm text-[#5BC5A7] bg-green-50 px-3 py-1 rounded-full">
+                    te devem
+                  </span>
                 </>
               ) : (
                 <>
                   <TrendingDown className="w-6 h-6 text-[#FF6B6B]" />
-                  <p className="text-3xl font-bold text-[#FF6B6B]">R$ {Math.abs(totalBalance).toFixed(2)}</p>
-                  <span className="text-sm text-[#FF6B6B] bg-red-50 px-3 py-1 rounded-full">você deve</span>
+                  <p className="text-3xl font-bold text-[#FF6B6B]">
+                    R$ {Math.abs(totalBalance).toFixed(2)}
+                  </p>
+                  <span className="text-sm text-[#FF6B6B] bg-red-50 px-3 py-1 rounded-full">
+                    você deve
+                  </span>
                 </>
               )}
             </div>
@@ -228,11 +300,14 @@ export default function Home() {
           <>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold text-gray-800">Seus grupos</h2>
-              <span className="text-sm text-gray-600">{groups.length} {groups.length === 1 ? 'grupo' : 'grupos'}</span>
+              <span className="text-sm text-gray-600">
+                {groups.length} {groups.length === 1 ? 'grupo' : 'grupos'}
+              </span>
             </div>
+
             <div className="space-y-3">
               {groups.map((group) => (
-                <Link key={group.id} href={`/group/${group.id}`}>
+                <Link key={group.id} href={/group/${group.id}}>
                   <div className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer border border-gray-100">
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1">
@@ -243,6 +318,7 @@ export default function Home() {
                           <span>R$ {group.totalSpent.toFixed(2)} gasto</span>
                         </div>
                       </div>
+
                       <div className="text-right ml-4">
                         {group.balance === 0 ? (
                           <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">zerado</span>
@@ -259,9 +335,10 @@ export default function Home() {
                         )}
                       </div>
                     </div>
+
                     {/* Prévia de Membros */}
                     <div className="pt-3 border-t border-gray-100">
-                      {renderMemberAvatars(group.members)}
+                      {renderMemberAvatars(group.members, 4)}
                     </div>
                   </div>
                 </Link>
