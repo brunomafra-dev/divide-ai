@@ -21,47 +21,12 @@ export default function Payments() {
   const [filter, setFilter] = useState<'all' | 'paid' | 'pending'>('all')
 
   useEffect(() => {
-    // Carregar pagamentos do localStorage
-    const savedPayments = localStorage.getItem('divideai_payments')
-    if (savedPayments) {
-      setPayments(JSON.parse(savedPayments))
-    } else {
-      // Dados de exemplo
-      const mockPayments: Payment[] = [
-        {
-          id: '1',
-          description: 'Pagamento de gastos da viagem',
-          amount: 150,
-          from: 'Você',
-          to: 'João Silva',
-          status: 'paid',
-          date: new Date().toISOString(),
-          groupName: 'Viagem para Praia',
-        },
-        {
-          id: '2',
-          description: 'Divisão do mercado',
-          amount: 80,
-          from: 'Maria Santos',
-          to: 'Você',
-          status: 'pending',
-          date: new Date(Date.now() - 86400000).toISOString(),
-          groupName: 'Casa dos Pais',
-        },
-        {
-          id: '3',
-          description: 'Churrasco do fim de semana',
-          amount: 45,
-          from: 'Você',
-          to: 'Pedro Costa',
-          status: 'paid',
-          date: new Date(Date.now() - 172800000).toISOString(),
-          groupName: 'Churrasco Domingo',
-        },
-      ]
-      setPayments(mockPayments)
-      localStorage.setItem('divideai_payments', JSON.stringify(mockPayments))
-    }
+    // ✅ Sem mock e sem localStorage
+    // Se você já tinha mock salvo no navegador, limpa pra sumir de vez:
+    try {
+      localStorage.removeItem('divideai_payments')
+    } catch {}
+    setPayments([])
   }, [])
 
   const filteredPayments = payments.filter(payment => {
@@ -166,7 +131,7 @@ export default function Payments() {
             </div>
             <h3 className="text-lg font-medium text-gray-800 mb-2">Nenhum pagamento</h3>
             <p className="text-gray-600">
-              {filter === 'all' 
+              {filter === 'all'
                 ? 'Você ainda não tem pagamentos registrados'
                 : filter === 'paid'
                 ? 'Nenhum pagamento concluído'
