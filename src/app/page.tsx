@@ -307,7 +307,7 @@ export default function Home() {
 
             <div className="space-y-3">
               {groups.map((group) => (
-                <Link key={group.id} href={/group/${group.id}'}>
+               <Link key={group.id} href={/group/${group.id}}>
                   <div className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer border border-gray-100">
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1">
