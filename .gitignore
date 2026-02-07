@@ -43,3 +43,4 @@ temp-*
 *.temp
 .DS_Store.npm/
 dist/
+.lasy/
