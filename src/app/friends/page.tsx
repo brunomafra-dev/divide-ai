@@ -2,22 +2,145 @@
 
 import { ArrowLeft, UserPlus, Search } from 'lucide-react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+
+interface Friend {
+  id: string
+  name: string
+  email: string
+  balance: number
+}
 
 export default function Friends() {
   const [searchTerm, setSearchTerm] = useState('')
+  const [friends, setFriends] = useState<Friend[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const friends = [
-    { id: '1', name: 'João Silva', email: 'joao@email.com', balance: 150 },
-    { id: '2', name: 'Maria Santos', email: 'maria@email.com', balance: -80 },
-    { id: '3', name: 'Pedro Costa', email: 'pedro@email.com', balance: 0 },
-    { id: '4', name: 'Ana Oliveira', email: 'ana@email.com', balance: 200 },
-  ]
+  useEffect(() => {
+    const loadFriends = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setLoading(false)
+        return
+      }
+
+      // Buscar amizades aceitas
+      const { data: friendships, error: friendshipsError } = await supabase
+        .from('friendships')
+        .select('friend_id')
+        .eq('user_id', user.id)
+        .eq('status', 'accepted')
+
+      if (friendshipsError) {
+        console.error('Erro ao carregar amizades:', friendshipsError)
+        setLoading(false)
+        return
+      }
+
+      if (!friendships || friendships.length === 0) {
+        setFriends([])
+        setLoading(false)
+        return
+      }
+
+      const friendIds = friendships.map(f => f.friend_id)
+
+      // Buscar perfis dos amigos
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', friendIds)
+
+      if (profilesError) {
+        console.error('Erro ao carregar perfis:', profilesError)
+        setLoading(false)
+        return
+      }
+
+      // Para cada amigo, calcular o saldo total (quanto devem ou você deve)
+      const friendsWithBalance = await Promise.all(
+        (profiles || []).map(async (profile) => {
+          // Buscar grupos em comum
+          const { data: userGroups } = await supabase
+            .from('group_members')
+            .select('group_id, id')
+            .eq('user_id', user.id)
+
+          const { data: friendGroups } = await supabase
+            .from('group_members')
+            .select('group_id, id')
+            .eq('user_id', profile.id)
+
+          let balance = 0
+
+          if (userGroups && friendGroups) {
+            const userGroupIds = userGroups.map(g => g.group_id)
+            const commonGroups = friendGroups.filter(fg => userGroupIds.includes(fg.group_id))
+
+            // Calcular saldo em cada grupo comum
+            for (const friendGroup of commonGroups) {
+              const userGroup = userGroups.find(ug => ug.group_id === friendGroup.group_id)
+              if (!userGroup) continue
+
+              // Buscar despesas do grupo
+              const { data: expenses } = await supabase
+                .from('expenses')
+                .select('id, amount, payer_id')
+                .eq('group_id', friendGroup.group_id)
+
+              if (!expenses) continue
+
+              for (const expense of expenses) {
+                const { data: participants } = await supabase
+                  .from('expense_participants')
+                  .select('member_id, amount')
+                  .eq('expense_id', expense.id)
+
+                const userPart = participants?.find(p => p.member_id === userGroup.id)
+                const friendPart = participants?.find(p => p.member_id === friendGroup.id)
+
+                if (userPart && friendPart) {
+                  if (expense.payer_id === userGroup.id) {
+                    // Você pagou: amigo deve
+                    balance += Number(friendPart.amount)
+                  } else if (expense.payer_id === friendGroup.id) {
+                    // Amigo pagou: você deve
+                    balance -= Number(userPart.amount)
+                  }
+                }
+              }
+            }
+          }
+
+          return {
+            id: profile.id,
+            name: profile.full_name || 'Sem nome',
+            email: '', // Não podemos acessar auth.admin sem service role key
+            balance
+          }
+        })
+      )
+
+      setFriends(friendsWithBalance)
+      setLoading(false)
+    }
+
+    loadFriends()
+  }, [])
 
   const filteredFriends = friends.filter(friend =>
     friend.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     friend.email.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
+        <p className="text-gray-600">Carregando...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F7F7] pb-20">

@@ -47,64 +47,100 @@ export default function Home() {
   useEffect(() => {
     if (loading) return
 
-    // Carregar grupos do localStorage
-    const savedGroups = localStorage.getItem('divideai_groups')
-    if (savedGroups) {
-      const parsedGroups = JSON.parse(savedGroups)
-      setGroups(parsedGroups)
-      
+    // Carregar grupos do Supabase
+    const loadGroups = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Buscar grupos onde o usuário é membro
+      const { data: memberGroups, error: memberError } = await supabase
+        .from('group_members')
+        .select('group_id')
+        .eq('user_id', user.id)
+
+      if (memberError) {
+        console.error('Erro ao carregar grupos:', memberError)
+        return
+      }
+
+      if (!memberGroups || memberGroups.length === 0) {
+        setGroups([])
+        setTotalBalance(0)
+        return
+      }
+
+      const groupIds = memberGroups.map(m => m.group_id)
+
+      // Buscar detalhes dos grupos
+      const { data: groupsData, error: groupsError } = await supabase
+        .from('groups')
+        .select('*')
+        .in('id', groupIds)
+
+      if (groupsError) {
+        console.error('Erro ao carregar detalhes dos grupos:', groupsError)
+        return
+      }
+
+      // Para cada grupo, carregar membros e calcular totais
+      const groupsWithDetails = await Promise.all(
+        (groupsData || []).map(async (group) => {
+          // Buscar membros do grupo
+          const { data: members } = await supabase
+            .from('group_members')
+            .select('id, name, email')
+            .eq('group_id', group.id)
+
+          // Buscar despesas do grupo
+          const { data: expenses } = await supabase
+            .from('expenses')
+            .select('amount, payer_id')
+            .eq('group_id', group.id)
+
+          const totalSpent = expenses?.reduce((acc, exp) => acc + parseFloat(exp.amount.toString()), 0) || 0
+
+          // Calcular saldo do usuário neste grupo
+          let balance = 0
+
+          // Buscar membro do usuário atual neste grupo
+          const currentMember = members?.find(m => m.email === user.email)
+
+          if (currentMember && expenses) {
+            // Calcular quanto o usuário pagou
+            const userPaid = expenses
+              .filter(exp => exp.payer_id === currentMember.id)
+              .reduce((acc, exp) => acc + parseFloat(exp.amount.toString()), 0)
+
+            // Calcular participação do usuário em cada despesa
+            const { data: participations } = await supabase
+              .from('expense_participants')
+              .select('amount')
+              .eq('member_id', currentMember.id)
+
+            const userOwes = participations?.reduce((acc, part) => acc + parseFloat(part.amount.toString()), 0) || 0
+
+            balance = userPaid - userOwes
+          }
+
+          return {
+            id: group.id,
+            name: group.name,
+            totalSpent,
+            balance,
+            participants: members?.length || 0,
+            members: members?.map(m => ({ id: m.id, name: m.name })) || [],
+          }
+        })
+      )
+
+      setGroups(groupsWithDetails)
+
       // Calcular saldo total
-      const total = parsedGroups.reduce((acc: number, group: Group) => acc + group.balance, 0)
-      setTotalBalance(total)
-    } else {
-      // Dados de exemplo com membros
-      const mockGroups = [
-        {
-          id: '1',
-          name: 'Viagem para Praia',
-          totalSpent: 1200,
-          balance: -150,
-          participants: 4,
-          members: [
-            { id: '1', name: 'João Silva' },
-            { id: '2', name: 'Maria Santos' },
-            { id: '3', name: 'Pedro Costa' },
-            { id: '4', name: 'Ana Lima' },
-          ],
-        },
-        {
-          id: '2',
-          name: 'Casa dos Pais',
-          totalSpent: 800,
-          balance: 200,
-          participants: 3,
-          members: [
-            { id: '1', name: 'Carlos Mendes' },
-            { id: '2', name: 'Beatriz Souza' },
-            { id: '3', name: 'Rafael Alves' },
-          ],
-        },
-        {
-          id: '3',
-          name: 'Churrasco Domingo',
-          totalSpent: 300,
-          balance: 0,
-          participants: 5,
-          members: [
-            { id: '1', name: 'Lucas Ferreira' },
-            { id: '2', name: 'Juliana Rocha' },
-            { id: '3', name: 'Thiago Martins' },
-            { id: '4', name: 'Camila Dias' },
-            { id: '5', name: 'Felipe Gomes' },
-          ],
-        },
-      ]
-      setGroups(mockGroups)
-      localStorage.setItem('divideai_groups', JSON.stringify(mockGroups))
-      
-      const total = mockGroups.reduce((acc, group) => acc + group.balance, 0)
+      const total = groupsWithDetails.reduce((acc, group) => acc + group.balance, 0)
       setTotalBalance(total)
     }
+
+    loadGroups()
   }, [loading])
 
   const getInitials = (name: string) => {

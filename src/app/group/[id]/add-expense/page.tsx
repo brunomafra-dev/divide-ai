@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
 interface Participant {
   id: string
@@ -33,14 +34,46 @@ export default function AddExpense() {
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([])
 
   useEffect(() => {
-    // Carregar grupo
-    const savedGroup = localStorage.getItem(`divideai_group_${groupId}`)
-    if (savedGroup) {
-      const parsedGroup = JSON.parse(savedGroup)
-      setGroup(parsedGroup)
-      setPayerId(parsedGroup.participantsList[0]?.id || '')
-      setSelectedParticipants(parsedGroup.participantsList.map((p: Participant) => p.id))
+    const loadGroup = async () => {
+      // Buscar grupo
+      const { data: groupData, error: groupError } = await supabase
+        .from('groups')
+        .select('*')
+        .eq('id', groupId)
+        .single()
+
+      if (groupError) {
+        console.error('Erro ao carregar grupo:', groupError)
+        return
+      }
+
+      // Buscar membros do grupo
+      const { data: members, error: membersError } = await supabase
+        .from('group_members')
+        .select('id, name, email')
+        .eq('group_id', groupId)
+
+      if (membersError) {
+        console.error('Erro ao carregar membros:', membersError)
+        return
+      }
+
+      setGroup({
+        id: groupData.id,
+        name: groupData.name,
+        participantsList: members || [],
+        transactions: [],
+        totalSpent: 0,
+        balance: 0
+      })
+
+      if (members && members.length > 0) {
+        setPayerId(members[0].id)
+        setSelectedParticipants(members.map(m => m.id))
+      }
     }
+
+    loadGroup()
   }, [groupId])
 
   const toggleParticipant = (participantId: string) => {
@@ -51,7 +84,7 @@ export default function AddExpense() {
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!amount || !description || !payerId || selectedParticipants.length === 0) {
       alert('Preencha todos os campos')
       return
@@ -65,54 +98,43 @@ export default function AddExpense() {
 
     if (!group) return
 
-    // Criar transação
-    const payer = group.participantsList.find(p => p.id === payerId)
-    const newTransaction = {
-      id: Date.now().toString(),
-      description,
-      amount: amountValue,
-      payerId,
-      payerName: payer?.name || 'Desconhecido',
-      date: new Date().toISOString(),
-      participants: selectedParticipants,
-    }
+    try {
+      // Criar despesa
+      const { data: expense, error: expenseError } = await supabase
+        .from('expenses')
+        .insert({
+          group_id: groupId,
+          description,
+          amount: amountValue,
+          payer_id: payerId,
+          date: new Date().toISOString()
+        })
+        .select()
+        .single()
 
-    // Atualizar grupo
-    const updatedGroup = {
-      ...group,
-      transactions: [...group.transactions, newTransaction],
-      totalSpent: group.totalSpent + amountValue,
-    }
+      if (expenseError) throw expenseError
 
-    // Calcular novo saldo (simplificado - assumindo que "Você" é o primeiro participante)
-    const splitAmount = amountValue / selectedParticipants.length
-    if (payerId === group.participantsList[0].id) {
-      // Você pagou
-      updatedGroup.balance = group.balance + (amountValue - splitAmount)
-    } else {
-      // Outro pagou
-      updatedGroup.balance = group.balance - splitAmount
-    }
+      // Calcular quanto cada participante deve
+      const splitAmount = amountValue / selectedParticipants.length
 
-    // Salvar
-    localStorage.setItem(`divideai_group_${groupId}`, JSON.stringify(updatedGroup))
-    
-    // Atualizar lista de grupos
-    const savedGroups = localStorage.getItem('divideai_groups')
-    if (savedGroups) {
-      const groups = JSON.parse(savedGroups)
-      const groupIndex = groups.findIndex((g: any) => g.id === groupId)
-      if (groupIndex !== -1) {
-        groups[groupIndex] = {
-          ...groups[groupIndex],
-          totalSpent: updatedGroup.totalSpent,
-          balance: updatedGroup.balance,
-        }
-        localStorage.setItem('divideai_groups', JSON.stringify(groups))
-      }
-    }
+      // Criar participações na despesa
+      const participations = selectedParticipants.map(memberId => ({
+        expense_id: expense.id,
+        member_id: memberId,
+        amount: splitAmount
+      }))
 
-    router.push(`/group/${groupId}`)
+      const { error: participationsError } = await supabase
+        .from('expense_participants')
+        .insert(participations)
+
+      if (participationsError) throw participationsError
+
+      router.push(`/group/${groupId}`)
+    } catch (error: any) {
+      console.error('Erro ao salvar despesa:', error)
+      alert('Erro ao salvar despesa: ' + error.message)
+    }
   }
 
   if (!group) {

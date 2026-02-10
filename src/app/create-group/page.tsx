@@ -3,7 +3,8 @@
 import { ArrowLeft, Plus, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 
 interface Participant {
   id: string
@@ -15,11 +16,34 @@ export default function CreateGroup() {
   const router = useRouter()
   const [groupName, setGroupName] = useState('')
   const [category, setCategory] = useState<'apartment' | 'house' | 'trip' | 'other'>('other')
-  const [participants, setParticipants] = useState<Participant[]>([
-    { id: '1', name: 'Você', email: 'voce@email.com' }
-  ])
+  const [participants, setParticipants] = useState<Participant[]>([])
   const [newParticipantName, setNewParticipantName] = useState('')
   const [newParticipantEmail, setNewParticipantEmail] = useState('')
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setCurrentUser(user)
+        // Adicionar o usuário atual como primeiro participante
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single()
+
+        setParticipants([{
+          id: user.id,
+          name: profile?.full_name || user.email || 'Você',
+          email: user.email
+        }])
+      }
+      setLoading(false)
+    }
+    loadUser()
+  }, [])
 
   const categories = [
     { id: 'apartment', label: 'Apartamento', icon: '🏢' },
@@ -42,36 +66,63 @@ export default function CreateGroup() {
   }
 
   const removeParticipant = (id: string) => {
-    if (id === '1') return // Não pode remover "Você"
+    if (id === currentUser?.id) return // Não pode remover o usuário atual
     setParticipants(participants.filter(p => p.id !== id))
   }
 
-  const handleCreateGroup = () => {
+  const handleCreateGroup = async () => {
     if (!groupName.trim() || participants.length < 2) {
       alert('Adicione um nome e pelo menos 2 participantes')
       return
     }
 
-    // Salvar grupo no localStorage
-    const savedGroups = localStorage.getItem('divideai_groups')
-    const groups = savedGroups ? JSON.parse(savedGroups) : []
-    
-    const newGroup = {
-      id: Date.now().toString(),
-      name: groupName,
-      category,
-      totalSpent: 0,
-      balance: 0,
-      participants: participants.length,
-      participantsList: participants,
-      transactions: [],
+    if (!currentUser) {
+      alert('Você precisa estar logado')
+      return
     }
 
-    groups.push(newGroup)
-    localStorage.setItem('divideai_groups', JSON.stringify(groups))
-    localStorage.setItem(`divideai_group_${newGroup.id}`, JSON.stringify(newGroup))
+    try {
+      // Criar grupo no Supabase
+      const { data: group, error: groupError } = await supabase
+        .from('groups')
+        .insert({
+          name: groupName,
+          category,
+          created_by: currentUser.id
+        })
+        .select()
+        .single()
 
-    router.push(`/group/${newGroup.id}`)
+      if (groupError) throw groupError
+
+      // Adicionar membros ao grupo
+      const membersToInsert = participants.map(p => ({
+        group_id: group.id,
+        user_id: p.id === currentUser.id ? currentUser.id : null,
+        name: p.name,
+        email: p.email,
+        is_registered: p.id === currentUser.id
+      }))
+
+      const { error: membersError } = await supabase
+        .from('group_members')
+        .insert(membersToInsert)
+
+      if (membersError) throw membersError
+
+      router.push(`/group/${group.id}`)
+    } catch (error: any) {
+      console.error('Erro ao criar grupo:', error)
+      alert('Erro ao criar grupo: ' + error.message)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
+        <p className="text-gray-600">Carregando...</p>
+      </div>
+    )
   }
 
   return (
@@ -158,7 +209,7 @@ export default function CreateGroup() {
                     )}
                   </div>
                 </div>
-                {participant.id !== '1' && (
+                {participant.id !== currentUser?.id && (
                   <button
                     onClick={() => removeParticipant(participant.id)}
                     className="text-gray-400 hover:text-red-500"

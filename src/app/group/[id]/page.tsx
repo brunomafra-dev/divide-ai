@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, TrendingUp, TrendingDown, Settings } from 'lucide-reac
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
 interface Participant {
   id: string
@@ -38,11 +39,105 @@ export default function GroupPage() {
   const [group, setGroup] = useState<Group | null>(null)
 
   useEffect(() => {
-    // Carregar grupo do localStorage
-    const savedGroup = localStorage.getItem(`divideai_group_${groupId}`)
-    if (savedGroup) {
-      setGroup(JSON.parse(savedGroup))
+    const loadGroup = async () => {
+      // Buscar detalhes do grupo
+      const { data: groupData, error: groupError } = await supabase
+        .from('groups')
+        .select('*')
+        .eq('id', groupId)
+        .single()
+
+      if (groupError) {
+        console.error('Erro ao carregar grupo:', groupError)
+        return
+      }
+
+      // Buscar membros do grupo
+      const { data: members, error: membersError } = await supabase
+        .from('group_members')
+        .select('id, name, email')
+        .eq('group_id', groupId)
+
+      if (membersError) {
+        console.error('Erro ao carregar membros:', membersError)
+        return
+      }
+
+      // Buscar despesas do grupo
+      const { data: expenses, error: expensesError } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('date', { ascending: false })
+
+      if (expensesError) {
+        console.error('Erro ao carregar despesas:', expensesError)
+        return
+      }
+
+      // Para cada despesa, buscar o nome do pagador e participantes
+      const transactions = await Promise.all(
+        (expenses || []).map(async (expense) => {
+          const payer = members?.find(m => m.id === expense.payer_id)
+
+          // Buscar participantes da despesa
+          const { data: expenseParticipants } = await supabase
+            .from('expense_participants')
+            .select('member_id')
+            .eq('expense_id', expense.id)
+
+          return {
+            id: expense.id,
+            description: expense.description,
+            amount: parseFloat(expense.amount.toString()),
+            payerId: expense.payer_id || '',
+            payerName: payer?.name || 'Desconhecido',
+            date: expense.date,
+            participants: expenseParticipants?.map(p => p.member_id) || []
+          }
+        })
+      )
+
+      const totalSpent = expenses?.reduce((acc, exp) => acc + parseFloat(exp.amount.toString()), 0) || 0
+
+      // Calcular saldo do usuário atual
+      const { data: { user } } = await supabase.auth.getUser()
+      let balance = 0
+
+      if (user) {
+        const currentMember = members?.find(m => m.email === user.email)
+
+        if (currentMember && expenses) {
+          // Calcular quanto o usuário pagou
+          const userPaid = expenses
+            .filter(exp => exp.payer_id === currentMember.id)
+            .reduce((acc, exp) => acc + parseFloat(exp.amount.toString()), 0)
+
+          // Calcular participação do usuário em cada despesa
+          const { data: participations } = await supabase
+            .from('expense_participants')
+            .select('amount')
+            .eq('member_id', currentMember.id)
+
+          const userOwes = participations?.reduce((acc, part) => acc + parseFloat(part.amount.toString()), 0) || 0
+
+          balance = userPaid - userOwes
+        }
+      }
+
+      setGroup({
+        id: groupData.id,
+        name: groupData.name,
+        category: groupData.category,
+        totalSpent,
+        balance,
+        participants: members?.length || 0,
+        participantsList: members || [],
+        transactions
+      })
     }
+
+    loadGroup()
   }, [groupId])
 
   if (!group) {
