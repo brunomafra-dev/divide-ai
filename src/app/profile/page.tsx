@@ -16,6 +16,7 @@ export default function ProfilePage() {
   const router = useRouter()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loggingOut, setLoggingOut] = useState(false)
 
   useEffect(() => {
     loadProfile()
@@ -42,11 +43,23 @@ export default function ProfilePage() {
   }
 
   const handleLogout = async () => {
+    setLoggingOut(true)
     try {
-      await supabase.auth.signOut()
-      router.push('/login')
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error('Erro ao fazer logout:', error)
+        alert('Erro ao sair da conta. Tente novamente.')
+        setLoggingOut(false)
+        return
+      }
+      // Limpar qualquer cache local
+      localStorage.clear()
+      sessionStorage.clear()
+      router.replace('/login')
     } catch (error) {
       console.error('Erro ao fazer logout:', error)
+      alert('Erro ao sair da conta. Tente novamente.')
+      setLoggingOut(false)
     }
   }
 
@@ -131,10 +144,20 @@ export default function ProfilePage() {
         {/* Logout Button */}
         <button
           onClick={handleLogout}
-          className="w-full bg-red-500 text-white py-3 rounded-lg font-medium hover:bg-red-600 transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+          disabled={loggingOut}
+          className="w-full bg-red-500 text-white py-3 rounded-lg font-medium hover:bg-red-600 transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <LogOut className="w-5 h-5" />
-          Sair da conta
+          {loggingOut ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              Saindo...
+            </>
+          ) : (
+            <>
+              <LogOut className="w-5 h-5" />
+              Sair da conta
+            </>
+          )}
         </button>
 
         {/* App Info */}

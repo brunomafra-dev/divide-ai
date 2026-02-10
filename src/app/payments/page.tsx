@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle, Clock, TrendingUp, TrendingDown } from 'lucide-
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import BottomNav from '@/components/ui/bottom-nav'
+import { supabase } from '@/lib/supabase'
 
 interface Payment {
   id: string
@@ -19,50 +20,129 @@ interface Payment {
 export default function Payments() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [filter, setFilter] = useState<'all' | 'paid' | 'pending'>('all')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Carregar pagamentos do localStorage
-    const savedPayments = localStorage.getItem('divideai_payments')
-    if (savedPayments) {
-      setPayments(JSON.parse(savedPayments))
-    } else {
-      // Dados de exemplo
-      const mockPayments: Payment[] = [
-        {
-          id: '1',
-          description: 'Pagamento de gastos da viagem',
-          amount: 150,
-          from: 'Você',
-          to: 'João Silva',
-          status: 'paid',
-          date: new Date().toISOString(),
-          groupName: 'Viagem para Praia',
-        },
-        {
-          id: '2',
-          description: 'Divisão do mercado',
-          amount: 80,
-          from: 'Maria Santos',
-          to: 'Você',
-          status: 'pending',
-          date: new Date(Date.now() - 86400000).toISOString(),
-          groupName: 'Casa dos Pais',
-        },
-        {
-          id: '3',
-          description: 'Churrasco do fim de semana',
-          amount: 45,
-          from: 'Você',
-          to: 'Pedro Costa',
-          status: 'paid',
-          date: new Date(Date.now() - 172800000).toISOString(),
-          groupName: 'Churrasco Domingo',
-        },
-      ]
-      setPayments(mockPayments)
-      localStorage.setItem('divideai_payments', JSON.stringify(mockPayments))
-    }
+    loadPayments()
   }, [])
+
+  const loadPayments = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setLoading(false)
+        return
+      }
+
+      // Buscar todos os grupos do usuário
+      const { data: userGroups } = await supabase
+        .from('group_members')
+        .select('group_id, id, name')
+        .eq('user_id', user.id)
+
+      if (!userGroups || userGroups.length === 0) {
+        setPayments([])
+        setLoading(false)
+        return
+      }
+
+      const groupIds = userGroups.map(g => g.group_id)
+
+      // Buscar todas as despesas dos grupos do usuário
+      const { data: expenses } = await supabase
+        .from('expenses')
+        .select(`
+          id,
+          description,
+          amount,
+          payer_id,
+          date,
+          group_id,
+          groups (name)
+        `)
+        .in('group_id', groupIds)
+        .order('date', { ascending: false })
+
+      if (!expenses || expenses.length === 0) {
+        setPayments([])
+        setLoading(false)
+        return
+      }
+
+      // Processar pagamentos
+      const paymentsData: Payment[] = []
+
+      for (const expense of expenses) {
+        // Buscar participantes da despesa
+        const { data: participants } = await supabase
+          .from('expense_participants')
+          .select('member_id, amount')
+          .eq('expense_id', expense.id)
+
+        if (!participants) continue
+
+        const userMember = userGroups.find(ug => ug.group_id === expense.group_id)
+        if (!userMember) continue
+
+        const userParticipation = participants.find(p => p.member_id === userMember.id)
+        if (!userParticipation) continue
+
+        // Buscar info do pagador
+        const { data: payer } = await supabase
+          .from('group_members')
+          .select('name, id')
+          .eq('id', expense.payer_id)
+          .single()
+
+        const isPayer = expense.payer_id === userMember.id
+        const userOwes = Number(userParticipation.amount)
+
+        // Se o usuário pagou e participou, ele recebe dos outros
+        if (isPayer && userOwes < Number(expense.amount)) {
+          // Outros devem ao usuário
+          for (const participant of participants) {
+            if (participant.member_id === userMember.id) continue
+
+            const { data: otherMember } = await supabase
+              .from('group_members')
+              .select('name')
+              .eq('id', participant.member_id)
+              .single()
+
+            paymentsData.push({
+              id: `${expense.id}-${participant.member_id}`,
+              description: expense.description,
+              amount: Number(participant.amount),
+              from: otherMember?.name || 'Desconhecido',
+              to: 'Você',
+              status: 'pending',
+              date: expense.date,
+              groupName: (expense.groups as any)?.name || 'Grupo'
+            })
+          }
+        }
+        // Se outro pagou e o usuário participou, o usuário deve
+        else if (!isPayer) {
+          paymentsData.push({
+            id: `${expense.id}-pay`,
+            description: expense.description,
+            amount: userOwes,
+            from: 'Você',
+            to: payer?.name || 'Desconhecido',
+            status: 'pending',
+            date: expense.date,
+            groupName: (expense.groups as any)?.name || 'Grupo'
+          })
+        }
+      }
+
+      setPayments(paymentsData)
+    } catch (error) {
+      console.error('Erro ao carregar pagamentos:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const filteredPayments = payments.filter(payment => {
     if (filter === 'all') return true
@@ -80,6 +160,14 @@ export default function Payments() {
   const totalPending = payments
     .filter(p => p.status === 'pending')
     .reduce((acc, p) => acc + p.amount, 0)
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
+        <p className="text-gray-600">Carregando...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F7F7] pb-20">
